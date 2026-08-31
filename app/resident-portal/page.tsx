@@ -1,0 +1,731 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import ResidentNoticePopup from "@/components/notices/ResidentNoticePopup";
+import FinancialSummary from "@/components/resident/FinancialSummary";
+import PaymentHistory from "@/components/resident/PaymentHistory";
+import { supabase } from "@/lib/supabase";
+import { normalizeBedLabel } from "@/lib/bedLabels";
+import {
+  isContractSignedAndAccepted,
+  isDepositVerified,
+} from "@/lib/contractWorkflow";
+import { resolveAuthenticatedResident } from "@/lib/residentPortalAuth";
+import { loadResidentPortalData } from "@/lib/residentPortalData";
+import {
+  isNoticeVisibleToResident,
+  type NoticeVisibilityRecord,
+} from "@/lib/noticeVisibility";
+
+type GenericRow = Record<string, unknown>;
+type PortalNotice = GenericRow & NoticeVisibilityRecord;
+
+type PortalTab =
+  | "Overview"
+  | "Profile"
+  | "Room"
+  | "Contract"
+  | "Bills"
+  | "Payments"
+  | "Notices"
+  | "Inspections"
+  | "Maintenance"
+  | "Security Deposit";
+
+function text(value: unknown) {
+  return value == null ? "" : String(value);
+}
+
+function firstText(row: GenericRow | null, keys: string[]) {
+  if (!row) return "";
+
+  for (const key of keys) {
+    const value = row[key];
+
+    if (
+      value !== null &&
+      value !== undefined &&
+      String(value).trim() !== ""
+    ) {
+      return String(value);
+    }
+  }
+
+  return "";
+}
+
+function residentName(row: GenericRow | null) {
+  const direct = firstText(row, ["full_name", "resident_name", "name"]);
+  if (direct) return direct;
+
+  const combined = `${firstText(row, ["first_name"])} ${firstText(row, [
+    "last_name",
+    "surname",
+  ])}`.trim();
+
+  return (
+    combined ||
+    firstText(row, ["phone", "email", "cnic"]) ||
+    "Resident"
+  );
+}
+
+function roomName(row: GenericRow | null) {
+  return firstText(row, ["room_number", "number", "name"]) || "—";
+}
+
+function bedName(row: GenericRow | null) {
+  const value = firstText(row, ["bed_number", "bed_code", "number", "name"]);
+  return value ? normalizeBedLabel(value) : "—";
+}
+
+function money(value: unknown) {
+  return new Intl.NumberFormat("en-PK", {
+    style: "currency",
+    currency: "PKR",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
+
+export default function ResidentPortalPage() {
+  const router = useRouter();
+  const [resident, setResident] = useState<GenericRow | null>(null);
+  const [admission, setAdmission] = useState<GenericRow | null>(null);
+  const [room, setRoom] = useState<GenericRow | null>(null);
+  const [bed, setBed] = useState<GenericRow | null>(null);
+  const [contract, setContract] = useState<GenericRow | null>(null);
+  const [bills, setBills] = useState<GenericRow[]>([]);
+  const [payments, setPayments] = useState<GenericRow[]>([]);
+  const [receipts, setReceipts] = useState<GenericRow[]>([]);
+  const [notices, setNotices] = useState<PortalNotice[]>([]);
+  const [inspections, setInspections] = useState<GenericRow[]>([]);
+  const [maintenance, setMaintenance] = useState<GenericRow[]>([]);
+  const [activeTab, setActiveTab] = useState<PortalTab>("Overview");
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const loadPortalData = useCallback(async (residentId: string) => {
+    setLoading(true);
+    setError("");
+
+    const portalResult = await loadResidentPortalData();
+    if (!portalResult.data) {
+      setError(portalResult.error);
+      setLoading(false);
+      return;
+    }
+
+    const protectedData = portalResult.data;
+    if (protectedData.resident.id !== residentId) {
+      setError("Your resident account could not be verified.");
+      setLoading(false);
+      return;
+    }
+
+    const [
+      noticesResult,
+      noticeRecipientsResult,
+      inspectionsResult,
+      maintenanceResult,
+    ] = await Promise.all([
+      supabase
+        .from("notices")
+        .select("*")
+        .eq("status", "Published")
+        .order("pinned", { ascending: false })
+        .order("publish_date", { ascending: false }),
+      supabase
+        .from("notice_recipients")
+        .select("notice_id")
+        .eq("resident_id", residentId),
+      supabase
+        .from("room_inspections")
+        .select("*")
+        .eq("resident_id", residentId)
+        .order("inspection_date", { ascending: false }),
+      supabase
+        .from("maintenance_requests")
+        .select("*")
+        .eq("resident_id", residentId)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    const activeAdmission = protectedData.admission;
+
+    if (
+      noticesResult.error ||
+      noticeRecipientsResult.error ||
+      inspectionsResult.error ||
+      maintenanceResult.error
+    ) {
+      setError("Your portal activity could not be loaded. Please refresh and try again.");
+      setLoading(false);
+      return;
+    }
+
+    const currentRoomId = firstText(activeAdmission, ["room_id"]);
+    const selectedNoticeIds = new Set(
+      (noticeRecipientsResult.data ?? []).map((row) => text(row.notice_id)),
+    );
+    const filteredNotices = ((noticesResult.data ?? []) as PortalNotice[]).filter(
+      (notice) =>
+        isNoticeVisibleToResident(notice, residentId, currentRoomId, undefined, selectedNoticeIds),
+    );
+
+    setResident(protectedData.resident);
+    setAdmission(activeAdmission);
+    setRoom(protectedData.room);
+    setBed(protectedData.bed);
+    setContract(protectedData.contract);
+    setBills(protectedData.bills);
+    setPayments(protectedData.payments);
+    setReceipts(protectedData.receipts);
+    setNotices(filteredNotices);
+    setInspections((inspectionsResult.data ?? []) as GenericRow[]);
+    setMaintenance((maintenanceResult.data ?? []) as GenericRow[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function initializePortal() {
+      setLoading(true);
+      setError("");
+      setMessage("");
+
+      try {
+        const resolved = await resolveAuthenticatedResident();
+        if (!active) return;
+        if (!resolved.resident) {
+          setResident(null);
+          setLoading(false);
+          setError(
+            resolved.error ||
+              "No resident record exists for your account. Please contact the hostel administrator.",
+          );
+          return;
+        }
+
+        await loadPortalData(resolved.resident.id);
+      } catch {
+        if (active) {
+          setError("Unable to load your resident portal right now. Please try again.");
+          setLoading(false);
+        }
+      }
+    }
+
+    initializePortal();
+
+    return () => {
+      active = false;
+    };
+  }, [loadPortalData]);
+
+  async function logout() {
+    setLoading(true);
+    setMessage("");
+    setError("");
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }
+
+  const isReadOnlyView = false;
+  const admissionStatus = firstText(admission, ["status", "admission_status"]);
+  const hasActiveAdmission = admissionStatus === "Active";
+  const contractSigned = isContractSignedAndAccepted(contract ?? undefined);
+  const depositVerified = isDepositVerified(firstText(admission, ["deposit_status"]));
+  const portalTabs: PortalTab[] = hasActiveAdmission
+    ? ["Overview", "Profile", "Room", "Contract", "Security Deposit", "Bills", "Payments", "Notices", "Inspections", "Maintenance"]
+    : ["Overview", "Profile", "Contract", "Security Deposit", "Payments", "Notices"];
+
+  const verifiedByBill = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const payment of payments) {
+      if (
+        firstText(payment, ["payment_status", "status"])
+          .trim()
+          .toLowerCase() !== "verified"
+      ) {
+        continue;
+      }
+
+      const billId = firstText(payment, ["bill_id"]);
+      totals.set(
+        billId,
+        (totals.get(billId) ?? 0) + Number(payment.amount || 0)
+      );
+    }
+    return totals;
+  }, [payments]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
+        <div className="mx-auto flex min-h-[90vh] max-w-md items-center">
+          <section className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
+              StayHub
+            </p>
+            <h1 className="mt-3 text-3xl font-bold text-slate-900">
+              Resident Portal
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Loading your profile and account details...
+            </p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  if (!resident) {
+    return (
+      <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
+        <div className="mx-auto flex min-h-[90vh] max-w-md items-center">
+          <section className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
+              StayHub
+            </p>
+
+            <h1 className="mt-3 text-3xl font-bold text-slate-900">
+              Resident Portal
+            </h1>
+
+            <p className="mt-2 text-sm text-slate-500">
+              {error || "Sign in with your Supabase account to access your resident portal."}
+            </p>
+
+            <div className="mt-6 space-y-3">
+              <button
+                type="button"
+                onClick={() => router.replace("/login")}
+                className="w-full rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white"
+              >
+                Go to Login
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="w-full rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700"
+              >
+                Logout
+              </button>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-50">
+      <ResidentNoticePopup notices={notices} residentId={text(resident.id)} />
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+          <div className="flex-1">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
+              StayHub
+            </p>
+
+            <h1 className="mt-1 text-2xl font-bold text-slate-900">
+              Resident Portal
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Welcome, {residentName(resident)}
+            </p>
+
+          </div>
+
+          <button
+            type="button"
+            onClick={logout}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[240px_1fr] lg:px-8">
+        <aside className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <nav className="space-y-2">
+            {portalTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`w-full rounded-xl px-4 py-3 text-left text-sm font-semibold ${
+                  activeTab === tab
+                    ? "bg-indigo-600 text-white"
+                    : "text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <section className="space-y-6">
+          {(message || error) && (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+                error
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {error || message}
+            </div>
+          )}
+
+          {activeTab === "Overview" && (
+            <>
+              {!hasActiveAdmission && (
+                <Card title="Pending Onboarding">
+                  <InfoGrid
+                    items={[
+                      ["Admission Status", admissionStatus || "Pending"],
+                      ["Contract", contractSigned ? "Signed" : "Unsigned"],
+                      ["Deposit Verification", depositVerified ? "Verified" : "Pending"],
+                      ["Overall Status", "Awaiting Admin Activation"],
+                    ]}
+                  />
+                  <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Your admission is awaiting contract signing, deposit verification, and admin activation.
+                  </p>
+                </Card>
+              )}
+              <div id="financial-summary"><FinancialSummary admission={admission} room={room} bed={bed} bills={bills} payments={payments} /></div>
+              
+              <Card title="Current Admission">
+                <InfoGrid
+                  items={[
+                    [
+                      "Admission Date",
+                      firstText(admission, ["admission_date"]).slice(0, 10) || "—",
+                    ],
+                    [
+                      "Expected Leaving",
+                      firstText(admission, ["expected_leaving_date", "leaving_date"]).slice(0, 10) || "—",
+                    ],
+                    ["Room", roomName(room)],
+                    ["Bed", bedName(bed)],
+                    [
+                      "Monthly Rent",
+                      money(
+                        admission?.monthly_rent ??
+                          room?.monthly_rent ??
+                          bed?.monthly_rent ??
+                          0
+                      ),
+                    ],
+                    [
+                      "Security Deposit",
+                      money(admission?.security_deposit ?? admission?.deposit_amount ?? 0),
+                    ],
+                  ]}
+                />
+              </Card>
+            </>
+          )}
+
+          {activeTab === "Security Deposit" && (
+            <Card title="Security Deposit">
+              {bills.filter(b => b.bill_type === "Security Deposit").length === 0 ? (
+                <EmptyState text="No security deposit on record." />
+              ) : (
+                bills.filter(b => b.bill_type === "Security Deposit").map(dep => (
+                  <div key={text(dep.id)} className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 mb-4 last:mb-0">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold text-slate-900">Security Deposit Bill ({text(dep.bill_number)})</p>
+                        <p className="text-sm text-slate-600 mt-1">Total: Rs {money(dep.total_amount)} | Balance: Rs {money(dep.balance_amount)}</p>
+                        <p className="text-sm font-medium mt-1">
+                          Status: <span className={dep.bill_status === "Paid" ? "text-emerald-600" : "text-amber-600"}>{text(dep.bill_status)}</span>
+                        </p>
+                      </div>
+                      {dep.bill_status !== "Paid" && (
+                        <Link href="/resident-portal/payments" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                          Submit Proof
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </Card>
+          )}
+
+          {activeTab === "Profile" && (
+            <Card title="My Profile">
+              <InfoGrid
+                items={[
+                  ["Name", residentName(resident)],
+                  ["Phone", firstText(resident, ["phone", "mobile"]) || "—"],
+                  ["Email", firstText(resident, ["email"]) || "—"],
+                  ["CNIC", firstText(resident, ["cnic", "national_id"]) || "—"],
+                  ["Profile Status", hasActiveAdmission ? "Active Resident" : "Pending Onboarding"],
+                  ["Address", firstText(resident, ["address"]) || "—"],
+                ]}
+              />
+            </Card>
+          )}
+
+          {activeTab === "Room" && (
+            <Card title="My Room">
+              <InfoGrid
+                items={[
+                  ["Room", roomName(room)],
+                  ["Bed", bedName(bed)],
+                  ["Room Type", firstText(room, ["room_type", "type"]) || "—"],
+                  ["Bed Type", firstText(bed, ["bed_type", "type"]) || "—"],
+                  [
+                    "Monthly Rent",
+                    money(
+                      admission?.monthly_rent ??
+                        room?.monthly_rent ??
+                        bed?.monthly_rent ??
+                        0
+                    ),
+                  ],
+                  [
+                    "Admission Status",
+                    firstText(admission, ["status", "admission_status"]) || "Active",
+                  ],
+                ]}
+              />
+            </Card>
+          )}
+
+          {activeTab === "Contract" && (
+            <Card title="My Contract">
+              <InfoGrid
+                items={[
+                  ["Contract Number", firstText(contract, ["contract_number"]) || "—"],
+                  ["Start Date", firstText(contract, ["start_date"]).slice(0, 10) || "—"],
+                  ["End Date", firstText(contract, ["end_date"]).slice(0, 10) || "—"],
+                  ["Monthly Rent", money(contract?.monthly_rent ?? admission?.monthly_rent ?? 0)],
+                  ["Security Deposit", money(contract?.security_deposit ?? admission?.security_deposit ?? 0)],
+                  ["Status", firstText(contract, ["status"]) || "—"],
+                  [
+                    "Resident Signature",
+                    firstText(contract, ["resident_signature"]) ? "Signed" : "Pending",
+                  ],
+                ]}
+              />
+
+              {firstText(contract, ["contract_content", "terms", "terms_and_conditions"]) && (
+                <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
+                  {firstText(contract, ["contract_content", "terms", "terms_and_conditions"])}
+                </div>
+              )}
+              <Link
+                href="/resident-portal/contract"
+                className="mt-5 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white"
+              >
+                Review and Sign Contract
+              </Link>
+            </Card>
+          )}
+
+          {activeTab === "Bills" && (
+            <Card title="My Bills">
+              <DataTable
+                headers={["Bill No.", "Month", "Total", "Paid", "Balance", "Due Date", "Status"]}
+                rows={bills.map((bill) => [
+                  firstText(bill, ["bill_number"]) || "—",
+                  firstText(bill, ["billing_month"]).slice(0, 7) || "—",
+                  money(bill.total_amount),
+                  money(verifiedByBill.get(text(bill.id)) ?? 0),
+                  money(
+                    Math.max(
+                      Number(bill.total_amount || 0) -
+                        (verifiedByBill.get(text(bill.id)) ?? 0),
+                      0
+                    )
+                  ),
+                  firstText(bill, ["due_date"]).slice(0, 10) || "—",
+                  firstText(bill, ["bill_status", "status"]) || "Pending",
+                ])}
+              />
+
+              {!isReadOnlyView && (
+                <div className="mt-6 flex flex-wrap gap-3 rounded-2xl border border-slate-200 p-5">
+                  <Link href="/resident-portal/bills" className="rounded-xl border border-indigo-200 px-5 py-3 text-sm font-semibold text-indigo-700">
+                    Open My Bills
+                  </Link>
+                  <Link href="/resident-portal/payments" className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white">
+                    Upload Payment Receipt
+                  </Link>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {activeTab === "Payments" && (
+            <PaymentHistory
+              admission={admission}
+              room={room}
+              bed={bed}
+              bills={bills}
+              payments={payments}
+              receipts={receipts}
+              onViewFinancialSummary={() => {
+                setActiveTab("Overview");
+                window.setTimeout(() => document.getElementById("financial-summary")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+              }}
+            />
+          )}
+
+          {activeTab === "Notices" && (
+            <Card title="Notices">
+              <div className="space-y-4">
+                {notices.length === 0 ? (
+                  <EmptyState text="No notices available." />
+                ) : (
+                  notices.map((notice) => (
+                    <article key={text(notice.id)} className="rounded-2xl border border-slate-200 p-5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {Boolean(notice.pinned) && <span>📌</span>}
+
+                        <h3 className="text-lg font-bold text-slate-900">
+                          {firstText(notice, ["title"]) || "Notice"}
+                        </h3>
+                      </div>
+
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {firstText(notice, ["description"])}
+                      </p>
+
+                      <p className="mt-3 text-xs text-slate-500">
+                        Published: {firstText(notice, ["publish_date"]).slice(0, 10) || "—"}
+                      </p>
+                    </article>
+                  ))
+                )}
+              </div>
+            </Card>
+          )}
+
+          {activeTab === "Inspections" && (
+            <Card title="Inspection History">
+              <DataTable
+                headers={["Inspection No.", "Date", "Type", "Area", "Condition", "Status"]}
+                rows={inspections.map((inspection) => [
+                  firstText(inspection, ["inspection_number"]) || "—",
+                  firstText(inspection, ["inspection_date"]).slice(0, 10) || "—",
+                  firstText(inspection, ["inspection_type"]) || "Routine",
+                  firstText(inspection, ["area_type"]) || "Room",
+                  firstText(inspection, ["overall_status"]) || "—",
+                  firstText(inspection, ["status"]) || "Pending",
+                ])}
+              />
+              {!isReadOnlyView && (
+                <Link href="/resident-portal/inspections" className="mt-5 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white">
+                  View Full Inspection History
+                </Link>
+              )}
+            </Card>
+          )}
+
+          {activeTab === "Maintenance" && (
+            <Card title="Maintenance Requests">
+              <DataTable
+                headers={["Request No.", "Date", "Category", "Priority", "Status"]}
+                rows={maintenance.map((request) => [
+                  firstText(request, ["request_number"]) || "—",
+                  firstText(request, ["complaint_date", "created_at"]).slice(0, 10) || "—",
+                  firstText(request, ["category"]) || "Other",
+                  firstText(request, ["priority"]) || "Medium",
+                  firstText(request, ["status"]) || "Pending",
+                ])}
+              />
+
+              {!isReadOnlyView && (
+                <Link href="/resident-portal/maintenance" className="mt-5 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white">
+                  Submit or View Maintenance Requests
+                </Link>
+              )}
+            </Card>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function Card({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="mb-5 text-xl font-bold text-slate-900">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+
+function InfoGrid({ items }: { items: [string, string][] }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {items.map(([label, value]) => (
+        <article key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="mt-2 font-semibold text-slate-900">{value}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+      <table className="min-w-full divide-y divide-slate-200">
+        <thead className="bg-slate-50">
+          <tr>
+            {headers.map((heading) => (
+              <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                {heading}
+              </th>
+            ))}
+          </tr>
+        </thead>
+
+        <tbody className="divide-y divide-slate-100 bg-white">
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={headers.length} className="px-4 py-10 text-center text-sm text-slate-500">
+                No records found.
+              </td>
+            </tr>
+          ) : (
+            rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {row.map((column, columnIndex) => (
+                  <td key={`${rowIndex}-${columnIndex}`} className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                    {column}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EmptyState({ text: label }: { text: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+      {label}
+    </div>
+  );
+}

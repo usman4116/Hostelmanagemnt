@@ -1,0 +1,213 @@
+import { deriveBillStatus, roundMoney, type BillLifecycleStatus } from "@/lib/financials";
+
+export type FinancialRow = Record<string, unknown>;
+
+export type FinancialLineItem = {
+  id: string;
+  title: string;
+  amount: number;
+  dueDate: string | null;
+  status: BillLifecycleStatus;
+  month: string;
+};
+
+export type ResidentFinancialSummary = {
+  monthlyRent: number;
+  monthlyRentDue: number;
+  rentDueDate: string | null;
+  rentStatus: BillLifecycleStatus | "Not Billed";
+  depositRequired: number;
+  depositPaid: number;
+  depositBalance: number;
+  depositStatus: string;
+  utilityItems: FinancialLineItem[];
+  otherItems: FinancialLineItem[];
+  rentCharges: number;
+  utilityCharges: number;
+  otherCharges: number;
+  discountApplied: number;
+  totalCharges: number;
+  verifiedPayments: number;
+  appliedPayments: number;
+  totalOutstanding: number;
+  paymentDeadline: string | null;
+  accountStatus: "Paid" | "Pending" | "Overdue";
+};
+
+function numberValue(...values: unknown[]) {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed !== 0) return parsed;
+  }
+  return 0;
+}
+
+function billNumber(row: FinancialRow, primary: string, legacy?: string) {
+  const primaryValue = row[primary];
+  if (primaryValue !== null && primaryValue !== undefined && String(primaryValue).trim() !== "") {
+    const parsed = Number(primaryValue);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (legacy) {
+    const parsed = Number(row[legacy]);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function value(row: FinancialRow | null | undefined, ...keys: string[]) {
+  for (const key of keys) {
+    const candidate = row?.[key];
+    if (candidate !== null && candidate !== undefined && String(candidate).trim()) return candidate;
+  }
+  return null;
+}
+
+function normalized(input: unknown) {
+  return String(input ?? "").trim().toLowerCase();
+}
+
+function monthValue(input: unknown) {
+  return String(input ?? "").slice(0, 7);
+}
+
+function isReceivedDeposit(status: unknown) {
+  return ["received", "verified", "paid"].includes(normalized(status));
+}
+
+export function buildResidentFinancialSummary({
+  admission,
+  room,
+  bed,
+  bills,
+  payments,
+}: {
+  admission: FinancialRow | null;
+  room: FinancialRow | null;
+  bed: FinancialRow | null;
+  bills: FinancialRow[];
+  payments: FinancialRow[];
+}): ResidentFinancialSummary {
+  const verifiedByBill = new Map<string, number>();
+  for (const payment of payments) {
+    if (normalized(value(payment, "payment_status", "status")) !== "verified") continue;
+    const billId = String(value(payment, "bill_id") ?? "");
+    if (!billId) continue;
+    verifiedByBill.set(billId, roundMoney((verifiedByBill.get(billId) ?? 0) + numberValue(payment.amount)));
+  }
+
+  const activeBills = bills
+    .filter((bill) => normalized(value(bill, "bill_status", "status")) !== "cancelled")
+    .map((bill) => {
+      const id = String(bill.id ?? "");
+      const total = roundMoney(numberValue(bill.total_amount));
+      const verifiedPaid = verifiedByBill.get(id) ?? 0;
+      const appliedPaid = Math.min(verifiedPaid, total);
+      const dueDate = value(bill, "due_date") ? String(value(bill, "due_date")).slice(0, 10) : null;
+      const status = deriveBillStatus(total, appliedPaid, dueDate, String(value(bill, "bill_status", "status") ?? ""));
+      return { bill, id, total, verifiedPaid, appliedPaid, balance: Math.max(roundMoney(total - appliedPaid), 0), dueDate, status, month: monthValue(bill.billing_month) };
+    })
+    .sort((a, b) => b.month.localeCompare(a.month));
+
+  let rentDue = 0;
+  let rentOverdue = false;
+  let rentCharges = 0;
+  let utilityCharges = 0;
+  let otherCharges = 0;
+  let discountApplied = 0;
+  const unpaidRentDeadlines: string[] = [];
+  const utilityItems: FinancialLineItem[] = [];
+  const otherItems: FinancialLineItem[] = [];
+
+  for (const item of activeBills) {
+    let paymentRemaining = item.appliedPaid;
+    const rent = roundMoney(billNumber(item.bill, "rent_amount", "room_rent"));
+    const electricity = roundMoney(billNumber(item.bill, "electricity_amount"));
+    const ac = roundMoney(billNumber(item.bill, "ac_amount", "ac_bill"));
+    const maintenance = roundMoney(billNumber(item.bill, "maintenance_fee"));
+    let other = roundMoney(billNumber(item.bill, "other_amount", "other_charges"));
+    const recordedDiscount = Math.max(roundMoney(billNumber(item.bill, "discount_amount", "discount")), 0);
+    const knownGross = roundMoney(rent + electricity + ac + maintenance + other);
+    const expectedNet = Math.max(roundMoney(knownGross - recordedDiscount), 0);
+    const missingChargeAdjustment = Math.max(roundMoney(item.total - expectedNet), 0);
+    other = Math.max(roundMoney(other + missingChargeAdjustment), 0);
+    const gross = roundMoney(rent + electricity + ac + maintenance + other);
+    const effectiveDiscount = Math.max(roundMoney(gross - item.total), 0);
+    const netFactor = gross > 0 ? Math.max((gross - effectiveDiscount) / gross, 0) : 0;
+    const netRent = roundMoney(rent * netFactor);
+    const netElectricity = roundMoney(electricity * netFactor);
+    const netAc = roundMoney(ac * netFactor);
+    const netMaintenance = roundMoney(maintenance * netFactor);
+    const allocatedBeforeOther = roundMoney(netRent + netElectricity + netAc + netMaintenance);
+    const netOther = Math.max(roundMoney(item.total - allocatedBeforeOther), 0);
+
+    rentCharges += rent;
+    utilityCharges += electricity + ac;
+    otherCharges += maintenance + other;
+    discountApplied += effectiveDiscount;
+
+    const rentOutstanding = Math.max(roundMoney(netRent - paymentRemaining), 0);
+    paymentRemaining = Math.max(roundMoney(paymentRemaining - netRent), 0);
+    rentDue += rentOutstanding;
+    if (rentOutstanding > 0) {
+      if (item.status === "Overdue") rentOverdue = true;
+      if (item.dueDate) unpaidRentDeadlines.push(item.dueDate);
+    }
+
+    for (const [kind, grossAmount, netAmount] of [["Electricity", electricity, netElectricity], ["AC charges", ac, netAc]] as const) {
+      if (grossAmount <= 0) continue;
+      const outstanding = Math.max(roundMoney(netAmount - paymentRemaining), 0);
+      paymentRemaining = Math.max(roundMoney(paymentRemaining - netAmount), 0);
+      utilityItems.push({ id: `${item.id}-${kind}`, title: `${kind} · ${item.month || "Bill"}`, amount: outstanding, dueDate: item.dueDate, status: outstanding === 0 ? "Paid" : item.status, month: item.month });
+    }
+
+    for (const [kind, grossAmount, netAmount] of [["Maintenance charges", maintenance, netMaintenance], ["Other charges", other, netOther]] as const) {
+      if (grossAmount <= 0) continue;
+      const outstanding = Math.max(roundMoney(netAmount - paymentRemaining), 0);
+      paymentRemaining = Math.max(roundMoney(paymentRemaining - netAmount), 0);
+      otherItems.push({ id: `${item.id}-${kind}`, title: `${kind} · ${item.month || "Bill"}`, amount: outstanding, dueDate: item.dueDate, status: outstanding === 0 ? "Paid" : item.status, month: item.month });
+    }
+  }
+
+  const currentBill = activeBills[0] ?? null;
+  const monthlyRent = currentBill
+    ? roundMoney(numberValue(currentBill.bill.rent_amount, currentBill.bill.room_rent))
+    : roundMoney(numberValue(admission?.monthly_rent, room?.monthly_rent, bed?.monthly_rent));
+  const depositRequired = roundMoney(numberValue(admission?.security_deposit, admission?.deposit_amount));
+  const depositReceived = isReceivedDeposit(value(admission, "deposit_status"));
+  const depositPaid = depositReceived ? depositRequired : 0;
+  const totalCharges = roundMoney(activeBills.reduce((sum, item) => sum + item.total, 0));
+  const verifiedPayments = roundMoney(activeBills.reduce((sum, item) => sum + item.verifiedPaid, 0));
+  const appliedPayments = roundMoney(activeBills.reduce((sum, item) => sum + item.appliedPaid, 0));
+  const totalOutstanding = roundMoney(activeBills.reduce((sum, item) => sum + item.balance, 0));
+  const outstandingBills = activeBills.filter((item) => item.balance > 0);
+  const deadlines = outstandingBills.map((item) => item.dueDate).filter((date): date is string => Boolean(date)).sort();
+  const accountStatus = outstandingBills.some((item) => item.status === "Overdue")
+    ? "Overdue"
+    : totalOutstanding > 0
+      ? "Pending"
+      : "Paid";
+
+  return {
+    monthlyRent,
+    monthlyRentDue: roundMoney(rentDue),
+    rentDueDate: unpaidRentDeadlines.sort()[0] ?? null,
+    rentStatus: !currentBill ? "Not Billed" : rentDue === 0 ? "Paid" : rentOverdue ? "Overdue" : "Pending",
+    depositRequired,
+    depositPaid,
+    depositBalance: Math.max(roundMoney(depositRequired - depositPaid), 0),
+    depositStatus: String(value(admission, "deposit_status") ?? (depositRequired > 0 ? "Pending" : "Not required")),
+    utilityItems,
+    otherItems,
+    rentCharges: roundMoney(rentCharges),
+    utilityCharges: roundMoney(utilityCharges),
+    otherCharges: roundMoney(otherCharges),
+    discountApplied: roundMoney(discountApplied),
+    totalCharges,
+    verifiedPayments,
+    appliedPayments,
+    totalOutstanding,
+    paymentDeadline: deadlines[0] ?? null,
+    accountStatus,
+  };
+}

@@ -1,0 +1,833 @@
+{
+  "generatedAt": "2026-08-05T12:55:22.188595+00:00",
+  "root": "C:\\Users\\Hp Pavilion 11th Gen\\Desktop\\hostel-management-system",
+  "healthScore": 0,
+  "project": {
+    "name": "hostel-management-system",
+    "version": "0.1.0",
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "eslint"
+    },
+    "hasAppRouter": true,
+    "hasComponents": true,
+    "hasLib": true,
+    "hasSupabase": true
+  },
+  "summary": {
+    "filesScanned": 109,
+    "totalFindings": 88,
+    "bySeverity": {
+      "high": 41,
+      "medium": 35,
+      "low": 12
+    }
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "category": "authentication",
+      "file": "lib/residentPortalSession.ts",
+      "line": 14,
+      "message": "Client storage appears to influence identity/session logic.",
+      "evidence": "window.localStorage.setItem(",
+      "recommendation": "Resolve identity from authenticated session state."
+    },
+    {
+      "severity": "high",
+      "category": "bed-label-consistency",
+      "file": "app/contracts/page.tsx",
+      "line": 686,
+      "message": "Bed number may be rendered directly without canonical normalization.",
+      "evidence": "{bed.bed_number}",
+      "recommendation": "Use one shared normalizer for display, sorting, duplicate checks, and inserts."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/billing/page.tsx",
+      "line": 1,
+      "message": "6 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/contract-template/page.tsx",
+      "line": 1,
+      "message": "6 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/contracts/page.tsx",
+      "line": 1,
+      "message": "3 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/dashboard/inventory/issue/page.tsx",
+      "line": 1,
+      "message": "6 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/inspection/page.tsx",
+      "line": 1,
+      "message": "3 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/maintenance/page.tsx",
+      "line": 1,
+      "message": "4 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/notices/page.tsx",
+      "line": 1,
+      "message": "3 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/payment-verification/page.tsx",
+      "line": 1,
+      "message": "5 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/residents/page.tsx",
+      "line": 1,
+      "message": "5 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "app/users/page.tsx",
+      "line": 1,
+      "message": "3 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "data-consistency",
+      "file": "proxy.ts",
+      "line": 1,
+      "message": "4 database writes found without obvious transaction/rollback handling.",
+      "evidence": "",
+      "recommendation": "Use a transactional RPC or compensating rollback with rechecks."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/complaints/add/page.tsx",
+      "line": 31,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/complaints/add/page.tsx",
+      "line": 66,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/complaints/page.tsx",
+      "line": 40,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/complaints/page.tsx",
+      "line": 64,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/notices/page.tsx",
+      "line": 113,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/staff/add/page.tsx",
+      "line": 52,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/staff/edit/[id]/page.tsx",
+      "line": 53,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/staff/edit/[id]/page.tsx",
+      "line": 138,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/staff/page.tsx",
+      "line": 43,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/staff/page.tsx",
+      "line": 76,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/visitors/add/page.tsx",
+      "line": 32,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/visitors/add/page.tsx",
+      "line": 68,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/visitors/page.tsx",
+      "line": 39,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "error-handling",
+      "file": "app/dashboard/visitors/page.tsx",
+      "line": 61,
+      "message": "Raw technical error may be exposed to users.",
+      "evidence": "alert(error.message);",
+      "recommendation": "Map errors to professional user-facing messages."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/admissions/page.tsx",
+      "line": 1,
+      "message": "Very large file: 1584 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/beds/page.tsx",
+      "line": 1,
+      "message": "Very large file: 1281 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/billing/page.tsx",
+      "line": 1,
+      "message": "Very large file: 1766 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/contracts/page.tsx",
+      "line": 1,
+      "message": "Very large file: 1126 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/dashboard/reports/page.tsx",
+      "line": 1,
+      "message": "Very large file: 1756 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/maintenance/page.tsx",
+      "line": 1,
+      "message": "Very large file: 1185 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/payments/page.tsx",
+      "line": 1,
+      "message": "Very large file: 994 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/residents/page.tsx",
+      "line": 1,
+      "message": "Very large file: 1034 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "app/rooms/page.tsx",
+      "line": 1,
+      "message": "Very large file: 943 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "maintainability",
+      "file": "components/admissions/AdmissionForm.tsx",
+      "line": 1,
+      "message": "Very large file: 817 lines.",
+      "evidence": "",
+      "recommendation": "Split UI, validation, data access, and domain logic."
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "file": "tools/project_audit.py",
+      "line": 76,
+      "message": "dangerouslySetInnerHTML is used.",
+      "evidence": "(\"high\", \"security\", r\"dangerouslySetInnerHTML\", \"dangerouslySetInnerHTML is used.\",",
+      "recommendation": "Sanitize or strictly trust the rendered content."
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "file": "tools/project_audit.py",
+      "line": 76,
+      "message": "dangerouslySetInnerHTML is used.",
+      "evidence": "(\"high\", \"security\", r\"dangerouslySetInnerHTML\", \"dangerouslySetInnerHTML is used.\",",
+      "recommendation": "Sanitize or strictly trust the rendered content."
+    },
+    {
+      "severity": "high",
+      "category": "testing",
+      "file": ".",
+      "line": 1,
+      "message": "No obvious automated test setup detected.",
+      "evidence": "",
+      "recommendation": ""
+    },
+    {
+      "severity": "high",
+      "category": "testing",
+      "file": "package.json",
+      "line": 1,
+      "message": "No npm test script detected.",
+      "evidence": "",
+      "recommendation": "Add focused tests for admissions, contracts, billing, beds, and authentication."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/admissions/page.tsx",
+      "line": 1525,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/admissions/page.tsx:1525, app/users/page.tsx:625",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/beds/page.tsx",
+      "line": 703,
+      "message": "Possible duplicated code block in 6 locations.",
+      "evidence": "app/beds/page.tsx:703, app/payments/page.tsx:577, app/profile/page.tsx:217, app/rooms/page.tsx:475, app/settings/page.tsx:229, app/users/page.tsx:307",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/beds/page.tsx",
+      "line": 1237,
+      "message": "Possible duplicated code block in 4 locations.",
+      "evidence": "app/beds/page.tsx:1237, app/payments/page.tsx:967, app/rooms/page.tsx:877, app/settings/page.tsx:505",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/beds/page.tsx",
+      "line": 1249,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/beds/page.tsx:1249, app/payments/page.tsx:979",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/billing/page.tsx",
+      "line": 1039,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/billing/page.tsx:1039, app/maintenance/page.tsx:601",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/dashboard/inventory/add/page.tsx",
+      "line": 13,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/dashboard/inventory/add/page.tsx:13, app/dashboard/inventory/edit/[id]/page.tsx:13",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/dashboard/inventory/add/page.tsx",
+      "line": 31,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/dashboard/inventory/add/page.tsx:31, app/dashboard/inventory/edit/[id]/page.tsx:31",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/dashboard/inventory/add/page.tsx",
+      "line": 553,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/dashboard/inventory/add/page.tsx:553, app/dashboard/inventory/edit/[id]/page.tsx:661",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/dashboard/notices/add/page.tsx",
+      "line": 565,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/dashboard/notices/add/page.tsx:565, app/dashboard/notices/edit/[id]/page.tsx:553",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/dashboard/notices/add/page.tsx",
+      "line": 571,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/dashboard/notices/add/page.tsx:571, app/dashboard/notices/edit/[id]/page.tsx:559",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/dashboard/settings/about/page.tsx",
+      "line": 103,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/dashboard/settings/about/page.tsx:103, app/dashboard/settings/sms/page.tsx:103",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/dashboard/settings/email/page.tsx",
+      "line": 103,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/dashboard/settings/email/page.tsx:103, app/dashboard/settings/logs/page.tsx:103",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "duplicate-code",
+      "file": "app/payment-verification/page.tsx",
+      "line": 505,
+      "message": "Possible duplicated code block in 2 locations.",
+      "evidence": "app/payment-verification/page.tsx:505, app/users/page.tsx:493",
+      "recommendation": "Review whether the logic belongs in a shared helper/component."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/dashboard/inventory/add/page.tsx",
+      "line": 1,
+      "message": "Large file: 614 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/dashboard/inventory/edit/[id]/page.tsx",
+      "line": 1,
+      "message": "Large file: 722 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/dashboard/inventory/issue/page.tsx",
+      "line": 1,
+      "message": "Large file: 714 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/dashboard/inventory/page.tsx",
+      "line": 1,
+      "message": "Large file: 587 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/dashboard/notices/add/page.tsx",
+      "line": 1,
+      "message": "Large file: 757 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/dashboard/notices/edit/[id]/page.tsx",
+      "line": 1,
+      "message": "Large file: 730 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/payment-verification/page.tsx",
+      "line": 1,
+      "message": "Large file: 674 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/resident-portal/maintenance/page.tsx",
+      "line": 1,
+      "message": "Large file: 573 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/resident-portal/page.tsx",
+      "line": 1,
+      "message": "Large file: 792 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/settings/page.tsx",
+      "line": 1,
+      "message": "Large file: 540 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "app/users/page.tsx",
+      "line": 1,
+      "message": "Large file: 657 lines.",
+      "evidence": "",
+      "recommendation": "Review whether reusable helpers/components can reduce complexity."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/billing/page.tsx",
+      "line": 1,
+      "message": "11 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/contracts/edit/[id]/page.tsx",
+      "line": 1,
+      "message": "10 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/dashboard/notices/add/page.tsx",
+      "line": 1,
+      "message": "13 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/dashboard/notices/edit/[id]/page.tsx",
+      "line": 1,
+      "message": "13 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/dashboard/staff/add/page.tsx",
+      "line": 1,
+      "message": "13 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/dashboard/staff/edit/[id]/page.tsx",
+      "line": 1,
+      "message": "14 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/inspection/page.tsx",
+      "line": 1,
+      "message": "12 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/maintenance/page.tsx",
+      "line": 1,
+      "message": "12 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/residents/page.tsx",
+      "line": 1,
+      "message": "13 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "app/rooms/add/page.tsx",
+      "line": 1,
+      "message": "10 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "medium",
+      "category": "react",
+      "file": "components/admissions/AdmissionForm.tsx",
+      "line": 1,
+      "message": "13 useState calls found.",
+      "evidence": "",
+      "recommendation": "Group form state or split the component."
+    },
+    {
+      "severity": "low",
+      "category": "logging",
+      "file": "app/billing/page.tsx",
+      "line": 811,
+      "message": "Console logging found.",
+      "evidence": "console.error(`[Billing] ac_bills ${meterOperation} failed`, {",
+      "recommendation": "Remove noisy logs or route them through a controlled logger."
+    },
+    {
+      "severity": "low",
+      "category": "logging",
+      "file": "app/billing/page.tsx",
+      "line": 861,
+      "message": "Console logging found.",
+      "evidence": "console.error(\"[Billing] ac_bills read-back failed\", {",
+      "recommendation": "Remove noisy logs or route them through a controlled logger."
+    },
+    {
+      "severity": "low",
+      "category": "logging",
+      "file": "app/billing/page.tsx",
+      "line": 899,
+      "message": "Console logging found.",
+      "evidence": "console.error(\"[Billing] ac_bills read-back did not match the insert payload\", {",
+      "recommendation": "Remove noisy logs or route them through a controlled logger."
+    },
+    {
+      "severity": "low",
+      "category": "logging",
+      "file": "app/resident-portal/maintenance/page.tsx",
+      "line": 43,
+      "message": "Console logging found.",
+      "evidence": "console.error(`[resident-maintenance] ${operation} failed`, {",
+      "recommendation": "Remove noisy logs or route them through a controlled logger."
+    },
+    {
+      "severity": "low",
+      "category": "logging",
+      "file": "app/residents/add/page.tsx",
+      "line": 24,
+      "message": "Console logging found.",
+      "evidence": "console.log(\"Data:\", data);",
+      "recommendation": "Remove noisy logs or route them through a controlled logger."
+    },
+    {
+      "severity": "low",
+      "category": "logging",
+      "file": "app/residents/add/page.tsx",
+      "line": 25,
+      "message": "Console logging found.",
+      "evidence": "console.log(\"Error:\", error);",
+      "recommendation": "Remove noisy logs or route them through a controlled logger."
+    },
+    {
+      "severity": "low",
+      "category": "logging",
+      "file": "components/admissions/AdmissionForm.tsx",
+      "line": 480,
+      "message": "Console logging found.",
+      "evidence": "console.error(\"[admission-contract] active template lookup failed\", {",
+      "recommendation": "Remove noisy logs or route them through a controlled logger."
+    },
+    {
+      "severity": "low",
+      "category": "logging",
+      "file": "components/admissions/AdmissionForm.tsx",
+      "line": 527,
+      "message": "Console logging found.",
+      "evidence": "console.error(\"[admission-contract] contract insert failed\", {",
+      "recommendation": "Remove noisy logs or route them through a controlled logger."
+    },
+    {
+      "severity": "low",
+      "category": "unfinished-work",
+      "file": "tools/project_audit.py",
+      "line": 82,
+      "message": "Unfinished-work marker found.",
+      "evidence": "(\"low\", \"unfinished-work\", r\"\\b(TODO|FIXME|HACK|XXX)\\b\", \"Unfinished-work marker found.\",",
+      "recommendation": "Review before production release."
+    },
+    {
+      "severity": "low",
+      "category": "unfinished-work",
+      "file": "tools/project_audit.py",
+      "line": 82,
+      "message": "Unfinished-work marker found.",
+      "evidence": "(\"low\", \"unfinished-work\", r\"\\b(TODO|FIXME|HACK|XXX)\\b\", \"Unfinished-work marker found.\",",
+      "recommendation": "Review before production release."
+    },
+    {
+      "severity": "low",
+      "category": "unfinished-work",
+      "file": "tools/project_audit.py",
+      "line": 82,
+      "message": "Unfinished-work marker found.",
+      "evidence": "(\"low\", \"unfinished-work\", r\"\\b(TODO|FIXME|HACK|XXX)\\b\", \"Unfinished-work marker found.\",",
+      "recommendation": "Review before production release."
+    },
+    {
+      "severity": "low",
+      "category": "unfinished-work",
+      "file": "tools/project_audit.py",
+      "line": 82,
+      "message": "Unfinished-work marker found.",
+      "evidence": "(\"low\", \"unfinished-work\", r\"\\b(TODO|FIXME|HACK|XXX)\\b\", \"Unfinished-work marker found.\",",
+      "recommendation": "Review before production release."
+    }
+  ],
+  "recommendedCommands": [
+    "npm run lint",
+    "npx tsc --noEmit",
+    "npm run build",
+    "npm audit"
+  ],
+  "limitations": [
+    "Static heuristics can produce false positives and false negatives.",
+    "Supabase RLS, policies, triggers, RPCs, and live schema are not validated.",
+    "Runtime behavior and real database concurrency are not tested."
+  ]
+}

@@ -1,0 +1,943 @@
+"use client";
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
+import {
+  prepareRoomBedCapacity,
+  provisionRoomBeds,
+  rollbackRoomBedChanges,
+  type BedCapacityResult,
+} from "@/lib/bedProvisioning";
+import { getSupabaseErrorMessage } from "@/lib/supabaseErrors";
+import { isOperationalBedStatus } from "@/lib/statuses";
+
+type RoomStatus =
+  | "Available"
+  | "Occupied"
+  | "Partially Occupied"
+  | "Maintenance"
+  | "Inactive";
+
+type Room = {
+  id: string;
+  room_number: string;
+  floor_number: number | null;
+  block_name: string | null;
+  room_type: string;
+  total_beds: number;
+  monthly_rent: number;
+  security_deposit_amount: number;
+  has_ac: boolean;
+  has_attached_bathroom: boolean;
+  has_balcony: boolean;
+  description: string | null;
+  status: RoomStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+type RoomForm = {
+  room_number: string;
+  floor_number: string;
+  block_name: string;
+  room_type: string;
+  total_beds: string;
+  monthly_rent: string;
+  security_deposit_amount: string;
+  has_ac: boolean;
+  has_attached_bathroom: boolean;
+  has_balcony: boolean;
+  description: string;
+  status: RoomStatus;
+};
+
+type RoomBed = {
+  id: string;
+  room_id: string;
+  bed_number: string;
+  status: string | null;
+};
+
+const emptyForm: RoomForm = {
+  room_number: "",
+  floor_number: "",
+  block_name: "",
+  room_type: "Shared",
+  total_beds: "1",
+  monthly_rent: "0",
+  security_deposit_amount: "0",
+  has_ac: false,
+  has_attached_bathroom: false,
+  has_balcony: false,
+  description: "",
+  status: "Available",
+};
+
+const inputClass =
+  "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-100";
+
+function nullable(value: string) {
+  const cleaned = value.trim();
+  return cleaned === "" ? null : cleaned;
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-PK", {
+    style: "currency",
+    currency: "PKR",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+}
+
+function roomToForm(room: Room): RoomForm {
+  return {
+    room_number: room.room_number,
+    floor_number: room.floor_number === null ? "" : String(room.floor_number),
+    block_name: room.block_name ?? "",
+    room_type: room.room_type ?? "Shared",
+    total_beds: String(room.total_beds ?? 1),
+    monthly_rent: String(room.monthly_rent ?? 0),
+    security_deposit_amount: String(room.security_deposit_amount ?? 0),
+    has_ac: room.has_ac ?? false,
+    has_attached_bathroom: room.has_attached_bathroom ?? false,
+    has_balcony: room.has_balcony ?? false,
+    description: room.description ?? "",
+    status: room.status ?? "Available",
+  };
+}
+
+export default function RoomsPage() {
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomBeds, setRoomBeds] = useState<RoomBed[]>([]);
+  const [referencedRoomIds, setReferencedRoomIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [relationshipsVerified, setRelationshipsVerified] = useState(false);
+  const [form, setForm] = useState<RoomForm>(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const loadRooms = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    const [roomResult, bedResult, admissionResult] = await Promise.all([
+      supabase.from("rooms").select("*").order("room_number", {
+        ascending: true,
+      }),
+      supabase.from("beds").select("id, room_id, bed_number, status"),
+      supabase.from("admissions").select("room_id"),
+    ]);
+
+    if (roomResult.error) {
+      setError(getSupabaseErrorMessage(roomResult.error, "Rooms could not be loaded."));
+      setRooms([]);
+    } else {
+      setRooms((roomResult.data ?? []) as Room[]);
+    }
+
+    if (bedResult.error || admissionResult.error) {
+      setError((current) =>
+        current
+          ? `${current} | Unable to verify room relationships.`
+          : "Unable to verify room relationships.",
+      );
+      setRoomBeds([]);
+      setReferencedRoomIds(new Set());
+      setRelationshipsVerified(false);
+    } else {
+      setRoomBeds(
+        ((bedResult.data ?? []) as Array<{
+          id: string;
+          room_id: string | null;
+          bed_number: string;
+          status: string | null;
+        }>).filter((bed): bed is RoomBed => Boolean(bed.room_id)),
+      );
+      setReferencedRoomIds(
+        new Set(
+          (
+            (admissionResult.data ?? []) as Array<{ room_id: string | null }>
+          )
+            .map((admission) => admission.room_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      );
+      setRelationshipsVerified(true);
+    }
+
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    // Loading remote Supabase data is the external synchronization for this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadRooms();
+  }, [loadRooms]);
+
+  const filteredRooms = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return rooms.filter((room) => {
+      const matchesSearch =
+        query === "" ||
+        room.room_number.toLowerCase().includes(query) ||
+        (room.block_name ?? "").toLowerCase().includes(query) ||
+        room.room_type.toLowerCase().includes(query);
+
+      const matchesStatus =
+        statusFilter === "All" || room.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [rooms, search, statusFilter]);
+
+  const stats = useMemo(
+    () => ({
+      total: rooms.length,
+      available: rooms.filter((room) => room.status === "Available").length,
+      occupied: rooms.filter((room) => room.status === "Occupied").length,
+      maintenance: rooms.filter((room) => room.status === "Maintenance").length,
+    }),
+    [rooms]
+  );
+
+  function updateField<K extends keyof RoomForm>(
+    key: K,
+    value: RoomForm[K]
+  ) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function openAddForm() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setMessage("");
+    setError("");
+    setShowForm(true);
+  }
+
+  function openEditForm(room: Room) {
+    setEditingId(room.id);
+    setForm(roomToForm(room));
+    setMessage("");
+    setError("");
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    if (!form.room_number.trim()) {
+      setError("Room number is required.");
+      setSaving(false);
+      return;
+    }
+
+    const totalBeds = Number(form.total_beds);
+    const monthlyRent = Number(form.monthly_rent);
+    const securityDeposit = Number(form.security_deposit_amount);
+    const floorNumber =
+      form.floor_number.trim() === "" ? null : Number(form.floor_number);
+
+    if (!Number.isInteger(totalBeds) || totalBeds <= 0) {
+      setError("Total beds must be a whole number greater than zero.");
+      setSaving(false);
+      return;
+    }
+
+    if (Number.isNaN(monthlyRent) || monthlyRent < 0) {
+      setError("Monthly rent must be zero or greater.");
+      setSaving(false);
+      return;
+    }
+
+    if (Number.isNaN(securityDeposit) || securityDeposit < 0) {
+      setError("Security deposit must be zero or greater.");
+      setSaving(false);
+      return;
+    }
+
+    if (
+      floorNumber !== null &&
+      (!Number.isInteger(floorNumber) || floorNumber < 0)
+    ) {
+      setError("Floor number must be a whole number.");
+      setSaving(false);
+      return;
+    }
+
+    const payload = {
+      room_number: form.room_number.trim(),
+      floor_number: floorNumber,
+      block_name: nullable(form.block_name),
+      room_type: form.room_type.trim() || "Shared",
+      total_beds: totalBeds,
+      capacity: totalBeds,
+      monthly_rent: monthlyRent,
+      security_deposit_amount: securityDeposit,
+      has_ac: form.has_ac,
+      has_attached_bathroom: form.has_attached_bathroom,
+      has_balcony: form.has_balcony,
+      description: nullable(form.description),
+      status: form.status,
+    };
+
+    let bedCapacityResult: BedCapacityResult | null = null;
+    if (editingId) {
+      bedCapacityResult = await prepareRoomBedCapacity({
+        roomId: editingId,
+        capacity: totalBeds,
+        allowIncrease: form.status !== "Inactive",
+      });
+      if (bedCapacityResult.error) {
+        setError(bedCapacityResult.error);
+        setSaving(false);
+        return;
+      }
+    }
+
+    const result = editingId
+      ? await supabase
+          .from("rooms")
+          .update(payload)
+          .eq("id", editingId)
+          .select("id")
+          .single()
+      : await supabase.from("rooms").insert(payload).select("id").single();
+
+    if (result.error || !result.data) {
+      const rolledBack = bedCapacityResult
+        ? await rollbackRoomBedChanges(bedCapacityResult)
+        : true;
+      setError(
+        rolledBack
+          ? getSupabaseErrorMessage(result.error, "The room could not be saved. No bed changes were kept.")
+          : "The room could not be saved, and some bed statuses could not be restored. Refresh and review this room before trying again.",
+      );
+      setSaving(false);
+      return;
+    }
+
+    const savedRoomId = String(result.data.id);
+    let partialSuccessError = "";
+    if (!editingId && form.status !== "Inactive") {
+      const provisionResult = await provisionRoomBeds({
+        roomId: savedRoomId,
+        capacity: totalBeds,
+      });
+
+      if (provisionResult.errors.length > 0) {
+        partialSuccessError = `Room saved, but only ${provisionResult.created} of ${provisionResult.requested} missing beds were created. Refresh and retry after resolving the database error.`;
+      } else {
+        setMessage(
+          `${editingId ? "Room updated" : "Room added"} successfully.${
+            provisionResult.created > 0
+              ? ` ${provisionResult.created} vacant bed${
+                  provisionResult.created === 1 ? " was" : "s were"
+                } created automatically.`
+              : ""
+          }`,
+        );
+      }
+    } else if (!editingId) {
+      setMessage(
+        `${editingId ? "Room updated" : "Room added"} successfully. No beds were created because the room is Inactive.`,
+      );
+    } else {
+      const changes = bedCapacityResult!;
+      setMessage(
+        `Room updated successfully.${
+          changes.deactivated > 0
+            ? ` ${changes.deactivated} surplus bed${changes.deactivated === 1 ? " was" : "s were"} marked Inactive.`
+            : ""
+        }${
+          changes.restored > 0
+            ? ` ${changes.restored} inactive bed${changes.restored === 1 ? " was" : "s were"} restored as Vacant.`
+            : ""
+        }${
+          changes.created > 0
+            ? ` ${changes.created} new vacant bed${changes.created === 1 ? " was" : "s were"} created.`
+            : ""
+        }`,
+      );
+    }
+    closeForm();
+    await loadRooms();
+    if (partialSuccessError) setError(partialSuccessError);
+    setSaving(false);
+  }
+
+  async function handleDelete(room: Room) {
+    if (!relationshipsVerified) {
+      setError("Room relationships could not be verified. Nothing was deleted.");
+      return;
+    }
+
+    const hasLinks =
+      roomBeds.some((bed) => bed.room_id === room.id) ||
+      referencedRoomIds.has(room.id);
+    const confirmed = window.confirm(
+      hasLinks
+        ? `Mark room ${room.room_number} Inactive? Linked records will be preserved.`
+        : `Delete room ${room.room_number}? This action cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(room.id);
+    setMessage("");
+    setError("");
+
+    const result = hasLinks
+      ? await supabase
+          .from("rooms")
+          .update({ status: "Inactive" })
+          .eq("id", room.id)
+      : await supabase.from("rooms").delete().eq("id", room.id);
+
+    if (
+      result.error &&
+      !hasLinks &&
+      /foreign key|constraint|23503/i.test(result.error.message)
+    ) {
+      const { error: inactiveError } = await supabase
+        .from("rooms")
+        .update({ status: "Inactive" })
+        .eq("id", room.id);
+
+      if (!inactiveError) {
+        setMessage("Room marked Inactive. Linked records were preserved.");
+        await loadRooms();
+        setDeletingId(null);
+        return;
+      }
+    }
+
+    if (result.error) {
+      setError(
+        /foreign key|constraint|23503/i.test(result.error.message)
+          ? "This room is linked to beds, admissions, or other records and cannot be deleted. Mark it Inactive instead."
+          : "The room could not be updated. Please try again.",
+      );
+    } else {
+      setMessage(
+        hasLinks
+          ? "Room marked Inactive. Linked records were preserved."
+          : "Room deleted successfully.",
+      );
+      await loadRooms();
+    }
+
+    setDeletingId(null);
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
+              Hostel Management System
+            </p>
+            <h1 className="mt-2 text-3xl font-bold text-slate-900">Rooms</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Add, update, search and manage hostel rooms.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={openAddForm}
+            className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+          >
+            + Add Room
+          </button>
+        </section>
+
+        {(message || error) && (
+          <section
+            className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+              error
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            {error || message}
+          </section>
+        )}
+
+        {showForm && (
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {editingId ? "Edit Room" : "Add Room"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Room number is required.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <Field label="Room Number *">
+                  <input
+                    required
+                    value={form.room_number}
+                    onChange={(event) =>
+                      updateField("room_number", event.target.value)
+                    }
+                    className={inputClass}
+                    placeholder="101"
+                  />
+                </Field>
+
+                <Field label="Floor Number">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.floor_number}
+                    onChange={(event) =>
+                      updateField("floor_number", event.target.value)
+                    }
+                    className={inputClass}
+                    placeholder="1"
+                  />
+                </Field>
+
+                <Field label="Block Name">
+                  <input
+                    value={form.block_name}
+                    onChange={(event) =>
+                      updateField("block_name", event.target.value)
+                    }
+                    className={inputClass}
+                    placeholder="Block A"
+                  />
+                </Field>
+
+                <Field label="Room Type">
+                  <select
+                    value={form.room_type}
+                    onChange={(event) =>
+                      updateField("room_type", event.target.value)
+                    }
+                    className={inputClass}
+                  >
+                    <option value="Shared">Shared</option>
+                    <option value="Single">Single</option>
+                    <option value="Double">Double</option>
+                    <option value="Triple">Triple</option>
+                    <option value="Dormitory">Dormitory</option>
+                  </select>
+                </Field>
+
+                <Field label="Total Beds">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={form.total_beds}
+                    onChange={(event) =>
+                      updateField("total_beds", event.target.value)
+                    }
+                    className={inputClass}
+                  />
+                </Field>
+
+                <Field label="Status">
+                  <select
+                    value={form.status}
+                    onChange={(event) =>
+                      updateField("status", event.target.value as RoomStatus)
+                    }
+                    className={inputClass}
+                  >
+                    <option value="Available">Available</option>
+                    <option value="Occupied">Occupied</option>
+                    <option value="Partially Occupied">
+                      Partially Occupied
+                    </option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </Field>
+
+                <Field label="Monthly Rent">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.monthly_rent}
+                    onChange={(event) =>
+                      updateField("monthly_rent", event.target.value)
+                    }
+                    className={inputClass}
+                  />
+                </Field>
+
+                <Field label="Security Deposit">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.security_deposit_amount}
+                    onChange={(event) =>
+                      updateField(
+                        "security_deposit_amount",
+                        event.target.value
+                      )
+                    }
+                    className={inputClass}
+                  />
+                </Field>
+
+                <Field label="Facilities">
+                  <div className="space-y-2 rounded-xl border border-slate-300 p-3">
+                    <Checkbox
+                      label="Air Conditioning"
+                      checked={form.has_ac}
+                      onChange={(checked) => updateField("has_ac", checked)}
+                    />
+                    <Checkbox
+                      label="Attached Bathroom"
+                      checked={form.has_attached_bathroom}
+                      onChange={(checked) =>
+                        updateField("has_attached_bathroom", checked)
+                      }
+                    />
+                    <Checkbox
+                      label="Balcony"
+                      checked={form.has_balcony}
+                      onChange={(checked) =>
+                        updateField("has_balcony", checked)
+                      }
+                    />
+                  </div>
+                </Field>
+
+                <Field label="Description" wide>
+                  <textarea
+                    value={form.description}
+                    onChange={(event) =>
+                      updateField("description", event.target.value)
+                    }
+                    className={`${inputClass} min-h-24`}
+                    placeholder="Room details..."
+                  />
+                </Field>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving
+                    ? "Saving..."
+                    : editingId
+                    ? "Update Room"
+                    : "Save Room"}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Total Rooms" value={stats.total} />
+          <StatCard label="Available" value={stats.available} />
+          <StatCard label="Occupied" value={stats.occupied} />
+          <StatCard label="Maintenance" value={stats.maintenance} />
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="grid gap-3 border-b border-slate-200 p-5 md:grid-cols-[1fr_220px_auto]">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className={inputClass}
+              placeholder="Search by room number, block or type"
+            />
+
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className={inputClass}
+            >
+              <option value="All">All Statuses</option>
+              <option value="Available">Available</option>
+              <option value="Occupied">Occupied</option>
+              <option value="Partially Occupied">
+                Partially Occupied
+              </option>
+              <option value="Maintenance">Maintenance</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => void loadRooms()}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  {[
+                    "Room",
+                    "Type",
+                    "Beds",
+                    "Rent",
+                    "Facilities",
+                    "Status",
+                    "Actions",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500"
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-5 py-12 text-center text-sm text-slate-500"
+                    >
+                      Loading rooms...
+                    </td>
+                  </tr>
+                ) : filteredRooms.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-5 py-12 text-center text-sm text-slate-500"
+                    >
+                      No rooms found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRooms.map((room) => (
+                    <tr key={room.id} className="hover:bg-slate-50/70">
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <p className="font-semibold text-slate-900">
+                          Room {room.room_number}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {room.block_name || "No block"} · Floor{" "}
+                          {room.floor_number ?? "—"}
+                        </p>
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                        {room.room_type}
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-800">
+                        {roomBeds.filter(
+                          (bed) =>
+                            bed.room_id === room.id &&
+                            bed.status === "Occupied",
+                        ).length}
+                        {" / "}
+                        {room.total_beds}
+                        {roomBeds.filter(
+                          (bed) =>
+                            bed.room_id === room.id &&
+                            isOperationalBedStatus(bed.status),
+                        )
+                          .length > room.total_beds && (
+                          <p className="mt-1 max-w-48 whitespace-normal text-xs font-medium text-amber-700">
+                            Existing beds exceed capacity. Increase capacity
+                            before adding more.
+                          </p>
+                        )}
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <p className="text-sm font-semibold text-slate-800">
+                          {formatMoney(room.monthly_rent)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Deposit:{" "}
+                          {formatMoney(room.security_deposit_amount)}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4 text-xs text-slate-600">
+                        <div className="flex flex-wrap gap-1.5">
+                          {room.has_ac && <Tag label="AC" />}
+                          {room.has_attached_bathroom && (
+                            <Tag label="Attached Bath" />
+                          )}
+                          {room.has_balcony && <Tag label="Balcony" />}
+                          {!room.has_ac &&
+                            !room.has_attached_bathroom &&
+                            !room.has_balcony && <span>Standard</span>}
+                        </div>
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClass(
+                            room.status
+                          )}`}
+                        >
+                          {room.status}
+                        </span>
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditForm(room)}
+                            className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={deletingId === room.id}
+                            onClick={() => void handleDelete(room)}
+                            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {deletingId === room.id
+                              ? "Updating..."
+                              : "Archive / Delete"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function Field({
+  label,
+  wide = false,
+  children,
+}: {
+  label: string;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label className={wide ? "md:col-span-2 xl:col-span-3" : ""}>
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function Checkbox({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-3 text-sm text-slate-700">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-4 w-4"
+      />
+      {label}
+    </label>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-bold text-slate-900">{value}</p>
+    </article>
+  );
+}
+
+function Tag({ label }: { label: string }) {
+  return (
+    <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">
+      {label}
+    </span>
+  );
+}
+
+function statusClass(status: RoomStatus) {
+  switch (status) {
+    case "Available":
+      return "bg-emerald-100 text-emerald-700";
+    case "Occupied":
+      return "bg-red-100 text-red-700";
+    case "Partially Occupied":
+      return "bg-amber-100 text-amber-700";
+    case "Maintenance":
+      return "bg-orange-100 text-orange-700";
+    default:
+      return "bg-slate-200 text-slate-700";
+  }
+}
