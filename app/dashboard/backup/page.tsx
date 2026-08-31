@@ -56,7 +56,7 @@ export default function BackupPage() {
           </h1>
 
           <p className="mt-2 text-emerald-100">
-            Secure your StayHub data by creating and managing
+            Secure your University Girls Hostel data by creating and managing
             system backups.
           </p>
 

@@ -8,7 +8,7 @@ export default function ProfileSettingsPage() {
     email: "admin@stayhub.com",
     phone: "+92 300 1234567",
     designation: "Hostel Manager",
-    hostelName: "StayHub Hostel",
+    hostelName: "University Girls Hostel",
   });
 
   const handleChange = (
@@ -40,7 +40,7 @@ export default function ProfileSettingsPage() {
 
           <p className="mt-2 text-blue-100">
             Update administrator information used throughout
-            the StayHub Management System.
+            the University Girls Hostel Management System.
           </p>
 
         </div>
@@ -140,7 +140,7 @@ export default function ProfileSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              This information is displayed throughout the StayHub Admin
+              This information is displayed throughout the University Girls Hostel Admin
               Dashboard.
             </p>
 
@@ -253,7 +253,7 @@ export default function ProfileSettingsPage() {
                 </h3>
 
                 <p className="mt-2 text-sm text-purple-700">
-                  Complete access to all StayHub management modules.
+                  Complete access to all University Girls Hostel management modules.
                 </p>
 
               </div>
@@ -372,7 +372,7 @@ export default function ProfileSettingsPage() {
 
             <p className="mt-2 text-sm leading-6 text-blue-800">
               Updating your administrator profile changes the information
-              displayed throughout the StayHub dashboard. These changes do not
+              displayed throughout the University Girls Hostel dashboard. These changes do not
               affect residents, billing records, payments, or historical data.
             </p>
 

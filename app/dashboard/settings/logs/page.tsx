@@ -45,7 +45,7 @@ export default function LogsSettingsPage() {
 
           <p className="mt-2 text-indigo-100">
             Monitor system activities, security events and application logs
-            for StayHub Hostel Management System.
+            for University Girls Hostel Hostel Management System.
           </p>
 
         </div>
@@ -189,7 +189,7 @@ export default function LogsSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Overview of system logging activity across StayHub.
+              Overview of system logging activity across University Girls Hostel.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -302,7 +302,7 @@ export default function LogsSettingsPage() {
 
               <p className="mt-2 text-sm text-slate-500">
                 Manage log retention, monitoring and export options for
-                the StayHub system.
+                the University Girls Hostel system.
               </p>
 
             </div>

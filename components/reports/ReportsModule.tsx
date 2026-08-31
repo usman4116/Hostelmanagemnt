@@ -804,7 +804,7 @@ export default function ReportsModule() {
       <div className="mx-auto max-w-7xl space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:shadow-none">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-            StayHub
+            University Girls Hostel
           </p>
           <h1 className="mt-2 text-3xl font-bold">Reports</h1>
           <p className="mt-1 text-sm text-slate-500">

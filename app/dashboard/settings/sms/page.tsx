@@ -18,7 +18,7 @@ export default function SmsSettingsPage() {
     {
       id: 2,
       title: "Sender ID",
-      value: "StayHub",
+      value: "University Girls Hostel",
     },
     {
       id: 3,
@@ -45,7 +45,7 @@ export default function SmsSettingsPage() {
 
           <p className="mt-2 text-emerald-100">
             Configure SMS provider, sender information and notification
-            preferences for the StayHub system.
+            preferences for the University Girls Hostel system.
           </p>
 
         </div>
@@ -189,7 +189,7 @@ export default function SmsSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Current SMS service overview for the StayHub system.
+              Current SMS service overview for the University Girls Hostel system.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -213,7 +213,7 @@ export default function SmsSettingsPage() {
                 </span>
 
                 <span className="font-bold text-cyan-700">
-                  StayHub
+                  University Girls Hostel
                 </span>
 
               </div>

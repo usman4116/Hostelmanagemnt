@@ -554,7 +554,7 @@ export default function PaymentsPage() {
         <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-              StayHub
+              University Girls Hostel
             </p>
 
             <h1 className="mt-2 text-3xl font-bold text-slate-900">

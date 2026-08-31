@@ -129,7 +129,7 @@ export default function SecuritySettingsPage() {
 
                     <p className="mt-1 text-sm leading-6 text-slate-600">
                       Store security deposit information digitally inside
-                      StayHub for future reference.
+                      University Girls Hostel for future reference.
                     </p>
 
                   </div>

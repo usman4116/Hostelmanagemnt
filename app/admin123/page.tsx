@@ -119,12 +119,15 @@ export default function AdminLoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-100">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
-        <h1 className="text-4xl font-bold text-center text-blue-700">
-          StayHub Admin
-        </h1>
-        <p className="mt-2 text-center text-gray-500">
-          Staff Portal Login
-        </p>
+        <div className="flex flex-col items-center justify-center mb-6">
+          <img src="/logo.jpg" alt="University Girls Hostel" className="h-24 w-24 rounded-full object-cover shadow-sm mb-4" />
+          <h1 className="text-3xl font-bold text-center text-blue-700 leading-tight">
+            University Girls Hostel<br/>Admin
+          </h1>
+          <p className="mt-2 text-center text-gray-500 font-medium tracking-wide">
+            Staff Portal Login
+          </p>
+        </div>
 
         <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
           <input

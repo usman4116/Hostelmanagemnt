@@ -213,7 +213,7 @@ export default function ViewContractPage() {
       <div className="mx-auto max-w-4xl rounded-xl bg-white p-6 shadow">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">StayHub</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">University Girls Hostel</p>
             <h1 className="mt-2 text-2xl font-bold text-gray-800">Contract Details</h1>
             <p className="mt-1 text-sm text-gray-500">{contract.contract_number || `Contract ${contract.id}`}</p>
           </div>

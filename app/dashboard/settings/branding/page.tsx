@@ -13,7 +13,7 @@ export default function BrandingSettingsPage() {
     {
       id: 1,
       title: "Brand Name",
-      value: "StayHub",
+      value: "University Girls Hostel",
     },
     {
       id: 2,
@@ -44,7 +44,7 @@ export default function BrandingSettingsPage() {
           </h1>
 
           <p className="mt-2 text-purple-100">
-            Manage the StayHub name, logo, colors and visual identity
+            Manage the University Girls Hostel name, logo, colors and visual identity
             across the system.
           </p>
 
@@ -84,7 +84,7 @@ export default function BrandingSettingsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Review and update the visual identity of StayHub.
+                Review and update the visual identity of University Girls Hostel.
               </p>
 
             </div>
@@ -144,7 +144,7 @@ export default function BrandingSettingsPage() {
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            Customize how StayHub appears throughout the application.
+            Customize how University Girls Hostel appears throughout the application.
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -189,7 +189,7 @@ export default function BrandingSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Current branding configuration used throughout the StayHub
+              Current branding configuration used throughout the University Girls Hostel
               application.
             </p>
 
@@ -202,7 +202,7 @@ export default function BrandingSettingsPage() {
                 </span>
 
                 <span className="font-bold text-purple-700">
-                  StayHub
+                  University Girls Hostel
                 </span>
 
               </div>
@@ -242,7 +242,7 @@ export default function BrandingSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Features available for customizing the StayHub identity.
+              Features available for customizing the University Girls Hostel identity.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -254,7 +254,7 @@ export default function BrandingSettingsPage() {
                 </h3>
 
                 <p className="mt-2 text-sm text-slate-600">
-                  Upload and update the official StayHub logo used across
+                  Upload and update the official University Girls Hostel logo used across
                   dashboards and reports.
                 </p>
 
@@ -303,7 +303,7 @@ export default function BrandingSettingsPage() {
 
               <p className="mt-2 text-sm text-slate-500">
                 Manage logo, colors, themes and branding preferences for
-                the StayHub application.
+                the University Girls Hostel application.
               </p>
 
             </div>

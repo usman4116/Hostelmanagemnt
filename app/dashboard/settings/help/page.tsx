@@ -45,7 +45,7 @@ export default function HelpSettingsPage() {
 
           <p className="mt-2 text-orange-100">
             Access documentation, tutorials and support resources for
-            StayHub Hostel Management System.
+            University Girls Hostel Hostel Management System.
           </p>
 
         </div>
@@ -85,7 +85,7 @@ export default function HelpSettingsPage() {
 
               <p className="mt-1 text-sm text-slate-500">
                 Find guides, documentation and support resources for
-                using StayHub efficiently.
+                using University Girls Hostel efficiently.
               </p>
 
             </div>
@@ -236,7 +236,7 @@ export default function HelpSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Learn how StayHub helps administrators and staff.
+              Learn how University Girls Hostel helps administrators and staff.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -248,7 +248,7 @@ export default function HelpSettingsPage() {
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Browse detailed articles covering every StayHub feature.
+                  Browse detailed articles covering every University Girls Hostel feature.
                 </p>
 
               </div>
@@ -295,7 +295,7 @@ export default function HelpSettingsPage() {
 
               <p className="mt-2 text-sm text-slate-500">
                 Access support resources, documentation and learning
-                materials for StayHub.
+                materials for University Girls Hostel.
               </p>
 
             </div>
@@ -329,7 +329,7 @@ export default function HelpSettingsPage() {
               </h3>
 
               <p className="mt-2 text-sm leading-6 text-orange-800">
-                Read complete guides covering every module of the StayHub
+                Read complete guides covering every module of the University Girls Hostel
                 Hostel Management System.
               </p>
 

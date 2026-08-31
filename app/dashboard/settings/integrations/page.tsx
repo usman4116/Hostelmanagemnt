@@ -137,7 +137,7 @@ export default function IntegrationsSettingsPage() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Review and manage connected services for StayHub.
+              Review and manage connected services for University Girls Hostel.
             </p>
 
           </div>
@@ -225,7 +225,7 @@ export default function IntegrationsSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Overview of all external services connected with StayHub.
+              Overview of all external services connected with University Girls Hostel.
             </p>
 
             <div className="mt-6 space-y-4">

@@ -47,7 +47,7 @@ export default function DatabaseSettingsPage() {
 
           <p className="mt-2 text-cyan-100">
             Monitor database status, connection and backup information
-            for your StayHub system.
+            for your University Girls Hostel system.
           </p>
 
         </div>

@@ -69,7 +69,7 @@ export default function ActivityPage() {
           </h1>
 
           <p className="mt-2 text-violet-100">
-            Track every important action performed inside StayHub.
+            Track every important action performed inside University Girls Hostel.
           </p>
 
         </div>
@@ -144,7 +144,7 @@ export default function ActivityPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Latest actions performed across all StayHub modules.
+                Latest actions performed across all University Girls Hostel modules.
               </p>
 
             </div>
@@ -243,7 +243,7 @@ export default function ActivityPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Activity summary for each StayHub module.
+              Activity summary for each University Girls Hostel module.
             </p>
 
             <div className="mt-6 space-y-4">

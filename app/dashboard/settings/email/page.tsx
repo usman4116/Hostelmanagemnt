@@ -45,7 +45,7 @@ export default function EmailSettingsPage() {
 
           <p className="mt-2 text-blue-100">
             Configure email provider, sender information and notification
-            settings for the StayHub system.
+            settings for the University Girls Hostel system.
           </p>
 
         </div>
@@ -189,7 +189,7 @@ export default function EmailSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Current email service overview for the StayHub system.
+              Current email service overview for the University Girls Hostel system.
             </p>
 
             <div className="mt-6 space-y-4">

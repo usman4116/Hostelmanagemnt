@@ -238,7 +238,7 @@ export default function AddContractPage() {
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-4xl rounded-xl bg-white p-6 shadow">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">StayHub</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">University Girls Hostel</p>
         <h1 className="mt-2 text-2xl font-bold text-gray-800">Prepare Contract</h1>
         <p className="mt-1 text-sm text-gray-500">Admission details are authoritative. The resident signs later in their portal.</p>
 

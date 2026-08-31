@@ -76,8 +76,10 @@ function SidebarContent() {
         href="/dashboard"
         className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900"
       >
-        <h1 className="text-3xl font-bold text-blue-400">StayHub</h1>
-        <p className="mt-1 text-sm text-slate-400">Hostel Management System</p>
+        <div className="flex items-center gap-3">
+          <img src="/logo.jpg" alt="Logo" className="w-12 h-12 rounded-full object-cover bg-white" />
+          <h1 className="text-xl font-bold text-blue-400 leading-tight">University Girls<br/>Hostel</h1>
+        </div>
       </Link>
 
       <nav className="mt-10 space-y-2">

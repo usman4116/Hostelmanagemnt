@@ -80,9 +80,9 @@ export async function GET(request: NextRequest, context: { params: Promise<{ sou
 
     const fallbackNumber = `${value(settings?.receipt_prefix) || "RCP"}-${id.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
     receiptNumber ||= fallbackNumber;
-    const verifiedBy = value(record.verified_by) || "StayHub Administration";
+    const verifiedBy = value(record.verified_by) || "University Girls Hostel Administration";
     const pdf = await createResidentReceiptPdf({
-      hostelName: value(settings?.hostel_name) || "StayHub Hostel Management",
+      hostelName: value(settings?.hostel_name) || "University Girls Hostel Hostel Management",
       hostelAddress: value(settings?.hostel_address),
       hostelContact: value(settings?.contact_number),
       hostelEmail: value(settings?.email),
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ sou
       verifiedAt: value(record.verified_at),
     });
     const safeNumber = receiptNumber.replace(/[^a-z0-9_-]+/gi, "-");
-    return new NextResponse(Buffer.from(pdf), { status: 200, headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="StayHub-Receipt-${safeNumber}.pdf"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+    return new NextResponse(Buffer.from(pdf), { status: 200, headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="University Girls Hostel-Receipt-${safeNumber}.pdf"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
   } catch {
     return errorResponse("The receipt could not be generated.", 500);
   }

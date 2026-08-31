@@ -15,13 +15,13 @@ export default function DashboardStats({ data }: { data: DashboardData }) {
 
     // 3. Revenue (All verified payments)
     const totalRevenue = payments
-      .filter(p => (p.payment_status || "").toLowerCase() === "verified")
+      .filter(p => String(p.payment_status || "").toLowerCase() === "verified")
       .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
     // 4. Outstanding Dues
     const verifiedByBill = new Map<string, number>();
     payments.forEach((payment) => {
-      if ((payment.payment_status || "").toLowerCase() === "verified") {
+      if (String(payment.payment_status || "").toLowerCase() === "verified") {
         const id = String(payment.bill_id);
         verifiedByBill.set(id, (verifiedByBill.get(id) || 0) + Number(payment.amount || 0));
       }
@@ -29,7 +29,7 @@ export default function DashboardStats({ data }: { data: DashboardData }) {
 
     let totalOutstanding = 0;
     bills.forEach((bill) => {
-      if ((bill.bill_status || "").toLowerCase() !== "cancelled") {
+      if (String(bill.bill_status || "").toLowerCase() !== "cancelled") {
         const paid = verifiedByBill.get(String(bill.id)) || 0;
         const total = Number(bill.total_amount || 0);
         totalOutstanding += Math.max(0, total - paid);

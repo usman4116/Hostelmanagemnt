@@ -267,16 +267,19 @@ export default function ResidentPortalPage() {
     return (
       <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
         <div className="mx-auto flex min-h-[90vh] max-w-md items-center">
-          <section className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-              StayHub
-            </p>
-            <h1 className="mt-3 text-3xl font-bold text-slate-900">
-              Resident Portal
-            </h1>
-            <p className="mt-2 text-sm text-slate-500">
-              Loading your profile and account details...
-            </p>
+          <section className="w-full rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+            <div className="flex flex-col items-center justify-center text-center">
+              <img src="/logo.jpg" alt="Logo" className="w-20 h-20 rounded-full object-cover shadow-sm mb-4" />
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
+                University Girls Hostel
+              </p>
+              <h1 className="mt-2 text-3xl font-bold text-slate-900">
+                Resident Portal
+              </h1>
+              <p className="mt-2 text-sm text-slate-500">
+                Loading your profile and account details...
+              </p>
+            </div>
           </section>
         </div>
       </main>
@@ -287,18 +290,19 @@ export default function ResidentPortalPage() {
     return (
       <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
         <div className="mx-auto flex min-h-[90vh] max-w-md items-center">
-          <section className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-              StayHub
-            </p>
-
-            <h1 className="mt-3 text-3xl font-bold text-slate-900">
-              Resident Portal
-            </h1>
-
-            <p className="mt-2 text-sm text-slate-500">
-              {error || "Sign in with your Supabase account to access your resident portal."}
-            </p>
+          <section className="w-full rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+            <div className="flex flex-col items-center justify-center text-center">
+              <img src="/logo.jpg" alt="Logo" className="w-20 h-20 rounded-full object-cover shadow-sm mb-4" />
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
+                University Girls Hostel
+              </p>
+              <h1 className="mt-2 text-3xl font-bold text-slate-900">
+                Resident Portal
+              </h1>
+              <p className="mt-2 text-sm text-slate-500">
+                {error || "Sign in with your Supabase account to access your resident portal."}
+              </p>
+            </div>
 
             <div className="mt-6 space-y-3">
               <button
@@ -327,19 +331,19 @@ export default function ResidentPortalPage() {
       <ResidentNoticePopup notices={notices} residentId={text(resident.id)} />
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex-1">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-              StayHub
-            </p>
-
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Resident Portal
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Welcome, {residentName(resident)}
-            </p>
-
+          <div className="flex items-center gap-4 flex-1">
+            <img src="/logo.jpg" alt="Logo" className="w-14 h-14 rounded-full object-cover shadow-sm" />
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
+                University Girls Hostel
+              </p>
+              <h1 className="mt-1 text-2xl font-bold text-slate-900">
+                Resident Portal
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Welcome, {residentName(resident)}
+              </p>
+            </div>
           </div>
 
           <button

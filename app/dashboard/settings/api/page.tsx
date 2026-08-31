@@ -45,7 +45,7 @@ export default function ApiSettingsPage() {
 
           <p className="mt-2 text-cyan-100">
             Manage API keys, external services and integrations for
-            StayHub Hostel Management System.
+            University Girls Hostel Hostel Management System.
           </p>
 
         </div>
@@ -150,7 +150,7 @@ export default function ApiSettingsPage() {
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            Enable or disable external services connected to StayHub.
+            Enable or disable external services connected to University Girls Hostel.
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -250,7 +250,7 @@ export default function ApiSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Current status of external services connected to StayHub.
+              Current status of external services connected to University Girls Hostel.
             </p>
 
             <div className="mt-6 space-y-4">

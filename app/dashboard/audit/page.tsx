@@ -69,7 +69,7 @@ export default function AuditPage() {
           </h1>
 
           <p className="mt-2 text-slate-300">
-            Track every important action performed inside StayHub
+            Track every important action performed inside University Girls Hostel
             for transparency and security.
           </p>
 
@@ -245,7 +245,7 @@ export default function AuditPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Audit records grouped by StayHub modules.
+              Audit records grouped by University Girls Hostel modules.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -442,7 +442,7 @@ export default function AuditPage() {
           <p className="mt-3 text-sm leading-6 text-red-800">
             Audit logs should only be accessed by authorized users. These
             records provide an accurate history of actions performed across
-            the StayHub system.
+            the University Girls Hostel system.
           </p>
 
         </div>

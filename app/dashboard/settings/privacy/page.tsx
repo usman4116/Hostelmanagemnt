@@ -45,7 +45,7 @@ export default function PrivacySettingsPage() {
 
           <p className="mt-2 text-slate-200">
             Configure privacy, data protection and user security settings
-            for StayHub Hostel Management System.
+            for University Girls Hostel Hostel Management System.
           </p>
 
         </div>
@@ -144,7 +144,7 @@ export default function PrivacySettingsPage() {
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            Enable or disable privacy features for your StayHub system.
+            Enable or disable privacy features for your University Girls Hostel system.
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -189,7 +189,7 @@ export default function PrivacySettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Current privacy and security status for StayHub.
+              Current privacy and security status for University Girls Hostel.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -302,7 +302,7 @@ export default function PrivacySettingsPage() {
 
               <p className="mt-2 text-sm text-slate-500">
                 Manage privacy protection, security policies and data access
-                across the StayHub system.
+                across the University Girls Hostel system.
               </p>
 
             </div>

@@ -348,7 +348,7 @@ export default function ResidentMaintenancePage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-            StayHub Resident Portal
+            University Girls Hostel Resident Portal
           </p>
           <h1 className="mt-2 text-3xl font-bold">My Maintenance</h1>
           <p className="mt-1 text-sm text-slate-500">

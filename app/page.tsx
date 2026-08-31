@@ -5,7 +5,7 @@ export default function HomePage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-lg">
         <h1 className="text-5xl font-bold text-blue-600">
-          StayHub
+          University Girls Hostel
         </h1>
 
         <h2 className="mt-4 text-xl font-semibold text-slate-800">

@@ -526,7 +526,7 @@ export default function ResidentPaymentsPage() {
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">StayHub</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">University Girls Hostel</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Payments & Receipts</h1>
           <p className="mt-1 text-sm text-slate-500">{resident ? `Financial activity for ${resident.full_name ?? "Resident"}.` : "Submit receipts and review verification history."}</p>
           <div className="mt-4 flex gap-3"><Link href="/resident-portal" className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold">Portal Home</Link><Link href="/resident-portal/bills" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">My Bills</Link></div>

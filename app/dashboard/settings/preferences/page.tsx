@@ -45,7 +45,7 @@ export default function PreferencesSettingsPage() {
 
           <p className="mt-2 text-cyan-100">
             Configure your personal application preferences and default
-            experience across the StayHub system.
+            experience across the University Girls Hostel system.
           </p>
 
         </div>
@@ -189,7 +189,7 @@ export default function PreferencesSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Current application preferences used throughout StayHub.
+              Current application preferences used throughout University Girls Hostel.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -301,7 +301,7 @@ export default function PreferencesSettingsPage() {
 
               <p className="mt-2 text-sm text-slate-500">
                 Manage application behavior, display options and personal
-                preferences for StayHub.
+                preferences for University Girls Hostel.
               </p>
 
             </div>

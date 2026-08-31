@@ -40,7 +40,7 @@ export default function PaymentHistory({ admission, room, bed, bills, payments, 
       }
       const blob = await response.blob();
       const disposition = response.headers.get("content-disposition") ?? "";
-      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || `StayHub-Receipt-${entry.sourceId.slice(0, 8)}.pdf`;
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || `University Girls Hostel-Receipt-${entry.sourceId.slice(0, 8)}.pdf`;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;

@@ -13,7 +13,7 @@ export default function AboutSettingsPage() {
     {
       id: 1,
       title: "Application",
-      value: "StayHub",
+      value: "University Girls Hostel",
     },
     {
       id: 2,
@@ -40,12 +40,12 @@ export default function AboutSettingsPage() {
         <div className="rounded-3xl bg-gradient-to-r from-emerald-700 via-green-700 to-teal-700 p-8 text-white shadow-xl">
 
           <h1 className="text-3xl font-bold">
-            About StayHub
+            About University Girls Hostel
           </h1>
 
           <p className="mt-2 text-emerald-100">
             Application information, version details and system overview
-            for the StayHub Hostel Management System.
+            for the University Girls Hostel Hostel Management System.
           </p>
 
         </div>
@@ -84,7 +84,7 @@ export default function AboutSettingsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                View software information and release details for StayHub.
+                View software information and release details for University Girls Hostel.
               </p>
 
             </div>
@@ -144,7 +144,7 @@ export default function AboutSettingsPage() {
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            General information about the StayHub platform and software.
+            General information about the University Girls Hostel platform and software.
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -183,7 +183,7 @@ export default function AboutSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Current information about the StayHub application.
+              Current information about the University Girls Hostel application.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -235,7 +235,7 @@ export default function AboutSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Core capabilities available in StayHub.
+              Core capabilities available in University Girls Hostel.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -295,7 +295,7 @@ export default function AboutSettingsPage() {
 
               <p className="mt-2 text-sm text-slate-500">
                 Review application details, version information and update
-                status for StayHub.
+                status for University Girls Hostel.
               </p>
 
             </div>
@@ -330,7 +330,7 @@ export default function AboutSettingsPage() {
 
               <p className="mt-2 text-sm leading-6 text-emerald-800">
                 Review previous releases and software improvements made to
-                the StayHub platform.
+                the University Girls Hostel platform.
               </p>
 
             </div>
@@ -372,7 +372,7 @@ export default function AboutSettingsPage() {
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-amber-800">
-            Always keep StayHub updated to the latest stable version for
+            Always keep University Girls Hostel updated to the latest stable version for
             improved security, performance and new features.
           </p>
 

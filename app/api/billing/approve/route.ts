@@ -39,7 +39,7 @@ function portalUrl() {
 }
 
 function hostelName() {
-  return text(process.env.NEXT_PUBLIC_HOSTEL_NAME) || "StayHub";
+  return text(process.env.NEXT_PUBLIC_HOSTEL_NAME) || "University Girls Hostel";
 }
 
 export async function POST(request: NextRequest) {

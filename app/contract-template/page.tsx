@@ -228,7 +228,7 @@ export default function ContractTemplatePage() {
     <div className="mx-auto max-w-7xl p-6">
       <div className="mb-6">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-          StayHub
+          University Girls Hostel
         </p>
         <h1 className="mt-2 text-3xl font-bold">Contract Templates</h1>
         <p className="mt-1 text-gray-600">

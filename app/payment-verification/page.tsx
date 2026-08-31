@@ -291,7 +291,7 @@ export default function PaymentVerificationPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-            StayHub
+            University Girls Hostel
           </p>
 
           <h1 className="mt-2 text-3xl font-bold text-slate-900">

@@ -161,7 +161,7 @@ export default function SettingsPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm uppercase tracking-widest text-blue-100">
-              StayHub Administration
+              University Girls Hostel Administration
             </p>
 
             <h1 className="mt-2 text-3xl font-bold">
@@ -307,7 +307,7 @@ export default function SettingsPage() {
                 Version
               </p>
               <p className="mt-2 text-lg font-bold text-slate-900">
-                StayHub v1.0
+                University Girls Hostel v1.0
               </p>
             </div>
 

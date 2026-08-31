@@ -44,7 +44,7 @@ export default function RolesSettingsPage() {
           </h1>
 
           <p className="mt-2 text-rose-100">
-            Manage user roles and permission levels across the StayHub
+            Manage user roles and permission levels across the University Girls Hostel
             hostel management system.
           </p>
 
@@ -189,7 +189,7 @@ export default function RolesSettingsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Overview of user roles currently configured in StayHub.
+              Overview of user roles currently configured in University Girls Hostel.
             </p>
 
             <div className="mt-6 space-y-4">
@@ -379,7 +379,7 @@ export default function RolesSettingsPage() {
 
           <p className="mt-3 text-sm leading-6 text-red-800">
             Changes to roles and permissions take effect immediately and
-            may impact user access across the StayHub system. Review all
+            may impact user access across the University Girls Hostel system. Review all
             assignments before saving.
           </p>
 

@@ -141,7 +141,7 @@ export default function InspectionDetailPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">StayHub Inspection Report</p><h1 className="mt-2 text-3xl font-bold">{inspection.inspection_number || "Inspection"}</h1><p className="mt-2 text-sm text-slate-500">Permanent inspection history for the linked admission.</p></div>
+          <div><p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">University Girls Hostel Inspection Report</p><h1 className="mt-2 text-3xl font-bold">{inspection.inspection_number || "Inspection"}</h1><p className="mt-2 text-sm text-slate-500">Permanent inspection history for the linked admission.</p></div>
           <div className="flex gap-2 print:hidden"><button type="button" onClick={() => window.print()} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Print</button><Link href="/inspection" className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold">Back</Link></div>
         </div>
       </section>

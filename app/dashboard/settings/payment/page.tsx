@@ -5,7 +5,7 @@ import { useState } from "react";
 export default function PaymentSettingsPage() {
   const [form, setForm] = useState({
     paymentMethod: "Bank Transfer",
-    accountTitle: "StayHub Hostel",
+    accountTitle: "University Girls Hostel Hostel",
     accountNumber: "",
     bankName: "",
     iban: "",

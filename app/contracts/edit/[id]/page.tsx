@@ -212,7 +212,7 @@ export default function EditContractPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-4xl rounded-xl bg-white p-6 shadow">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">StayHub</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">University Girls Hostel</p>
         <h1 className="mt-2 text-2xl font-bold text-gray-800">Edit Contract</h1>
         <p className="mt-1 text-sm text-gray-500">Update contract ID: {contractId}</p>
         <p className="mt-2 text-sm text-amber-700">Admission terms, resident identity, signature state, and activation status are locked. Activate only from Admissions after all readiness checks pass.</p>

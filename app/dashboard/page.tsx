@@ -102,7 +102,7 @@ export default function DashboardPage() {
           <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-4xl font-bold text-slate-950 dark:text-white">Welcome Back 👋</h2>
-              <p className="mt-2 text-gray-600 dark:text-slate-300">StayHub Admin Dashboard</p>
+              <p className="mt-2 text-gray-600 dark:text-slate-300">University Girls Hostel Dashboard</p>
             </div>
             <ProfileDropdown />
           </header>

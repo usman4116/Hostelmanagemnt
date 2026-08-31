@@ -3,7 +3,7 @@ import AppShell from "@/components/layout/AppShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "StayHub - Hostel Management System",
+  title: "University Girls Hostel",
   description: "Professional Hostel Management System",
 };
 

@@ -195,7 +195,7 @@ export default function ResidentBillsPage() {
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:shadow-none">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">StayHub</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">University Girls Hostel</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">My Bills</h1>
           <p className="mt-1 text-sm text-slate-500">
             {resident ? `Financial records for ${resident.full_name ?? "Resident"}.` : "Your bill history and outstanding balances."}
@@ -251,7 +251,7 @@ export default function ResidentBillsPage() {
 
         {selectedBill && (
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:shadow-none">
-            <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-wider text-indigo-600">StayHub Bill</p><h2 className="mt-2 text-2xl font-bold">{selectedBill.bill_number}</h2><p className="mt-1 text-sm text-slate-500">{monthLabel(selectedBill.billing_month)} · Due {selectedBill.due_date}</p></div><button type="button" onClick={() => setSelectedBill(null)} className="rounded-lg border px-3 py-2 text-sm print:hidden">Close</button></div>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-wider text-indigo-600">University Girls Hostel Bill</p><h2 className="mt-2 text-2xl font-bold">{selectedBill.bill_number}</h2><p className="mt-1 text-sm text-slate-500">{monthLabel(selectedBill.billing_month)} · Due {selectedBill.due_date}</p></div><button type="button" onClick={() => setSelectedBill(null)} className="rounded-lg border px-3 py-2 text-sm print:hidden">Close</button></div>
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[['Monthly Rent', selectedBill.rent_amount], ['Electricity', selectedBill.electricity_amount], ['AC Charges', selectedBill.ac_amount], ['Other Charges', selectedBill.other_amount], ['Discount', -selectedBill.discount_amount], ['Total', selectedBill.total_amount], ['Verified Paid', selectedBill.paid_amount], ['Outstanding', selectedBill.balance_amount]].map(([label, value]) => <article key={String(label)} className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-semibold uppercase text-slate-500">{label}</p><p className="mt-2 font-bold">{money(value)}</p></article>)}
             </div>

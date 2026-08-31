@@ -162,7 +162,7 @@ export default function ProfileDropdown() {
     setModalTab(tab);
   }
 
-  const name = profile?.full_name?.trim() || "StayHub User";
+  const name = profile?.full_name?.trim() || "University Girls Hostel User";
   const email = authEmail || profile?.email || "";
 
   return (
@@ -350,7 +350,7 @@ function ProfileModal({ initialTab, profile, authEmail, avatarUrl, onClose, onUp
       setError("Choose a new password that is different from your current password.");
       return;
     }
-    if (!window.confirm("Change your StayHub account password now? You will use the new password the next time you sign in.")) return;
+    if (!window.confirm("Change your University Girls Hostel account password now? You will use the new password the next time you sign in.")) return;
 
     setChangingPassword(true);
     const { error: verifyError } = await supabase.auth.signInWithPassword({ email: authEmail, password: password.current });
@@ -370,7 +370,7 @@ function ProfileModal({ initialTab, profile, authEmail, avatarUrl, onClose, onUp
     setChangingPassword(false);
   }
 
-  const name = profile?.full_name || "StayHub User";
+  const name = profile?.full_name || "University Girls Hostel User";
   const email = authEmail || profile?.email || "";
 
   return (
@@ -378,7 +378,7 @@ function ProfileModal({ initialTab, profile, authEmail, avatarUrl, onClose, onUp
       <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6 dark:border-slate-700">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-300">StayHub account</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-300">University Girls Hostel account</p>
             <h2 id="profile-dialog-title" className="mt-1 text-xl font-bold text-slate-900 dark:text-white">Profile & security</h2>
           </div>
           <button type="button" aria-label="Close profile panel" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl text-2xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white">×</button>
