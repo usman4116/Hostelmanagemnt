@@ -34,6 +34,7 @@ import {
   type ApprovalResult,
   type BulkGenerateResult,
 } from "@/lib/billingActions";
+import { usePermissions } from "@/lib/usePermissions";
 
 type GenericRow = Record<string, unknown>;
 
@@ -240,6 +241,7 @@ export default function BillingPage() {
 }
 
 function BillingContent() {
+  const { canViewRevenue } = usePermissions();
   const [bills, setBills] = useState<Bill[]>([]);
   const [residents, setResidents] = useState<GenericRow[]>([]);
   const [admissions, setAdmissions] = useState<GenericRow[]>([]);
@@ -2122,7 +2124,7 @@ function BillingContent() {
           </section>
         )}
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <section className={`grid gap-4 sm:grid-cols-2 ${canViewRevenue ? "xl:grid-cols-6" : "xl:grid-cols-4"}`}>
           <StatCard
             label="Total Bills"
             value={String(summary.total)}
@@ -2139,14 +2141,18 @@ function BillingContent() {
             label="Overdue"
             value={String(summary.overdue)}
           />
-          <StatCard
-            label="Pending Balance"
-            value={money(summary.pendingBalance)}
-          />
-          <StatCard
-            label="Collected"
-            value={money(summary.collected)}
-          />
+          {canViewRevenue && (
+            <>
+              <StatCard
+                label="Pending Balance"
+                value={money(summary.pendingBalance)}
+              />
+              <StatCard
+                label="Collected"
+                value={money(summary.collected)}
+              />
+            </>
+          )}
         </section>
 
         {pendingApprovalBills.length > 0 && (

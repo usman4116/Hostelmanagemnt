@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/lib/bedProvisioning";
 import { getSupabaseErrorMessage } from "@/lib/supabaseErrors";
 import { isOperationalBedStatus } from "@/lib/statuses";
+import { normalizeBedLabel } from "@/lib/bedLabels";
 
 type RoomStatus =
   | "Available"
@@ -52,11 +53,21 @@ type RoomForm = {
   status: RoomStatus;
 };
 
+type BedResident = {
+  resident_id: string;
+  full_name: string;
+  resident_code: string | null;
+  phone: string | null;
+  admission_date: string | null;
+  status: string | null;
+};
+
 type RoomBed = {
   id: string;
   room_id: string;
   bed_number: string;
   status: string | null;
+  resident?: BedResident | null;
 };
 
 const emptyForm: RoomForm = {
@@ -114,6 +125,7 @@ export default function RoomsPage() {
     new Set(),
   );
   const [relationshipsVerified, setRelationshipsVerified] = useState(false);
+  const [expandedRoomIds, setExpandedRoomIds] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<RoomForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -125,6 +137,23 @@ export default function RoomsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  function toggleRoomExpansion(roomId: string) {
+    setExpandedRoomIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(roomId)) next.delete(roomId);
+      else next.add(roomId);
+      return next;
+    });
+  }
+
+  function toggleExpandAll(currentRooms: Room[]) {
+    if (expandedRoomIds.size === currentRooms.length) {
+      setExpandedRoomIds(new Set());
+    } else {
+      setExpandedRoomIds(new Set(currentRooms.map((r) => r.id)));
+    }
+  }
+
   const loadRooms = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -133,8 +162,14 @@ export default function RoomsPage() {
       supabase.from("rooms").select("*").order("room_number", {
         ascending: true,
       }),
-      supabase.from("beds").select("id, room_id, bed_number, status"),
-      supabase.from("admissions").select("room_id"),
+      supabase
+        .from("beds")
+        .select("id, room_id, bed_number, status")
+        .order("bed_number", { ascending: true }),
+      supabase
+        .from("admissions")
+        .select("id, room_id, bed_id, resident_id, status, admission_date, residents(id, full_name, resident_code, phone)")
+        .in("status", ["Active", "Pending"]),
     ]);
 
     if (roomResult.error) {
@@ -154,19 +189,41 @@ export default function RoomsPage() {
       setReferencedRoomIds(new Set());
       setRelationshipsVerified(false);
     } else {
-      setRoomBeds(
-        ((bedResult.data ?? []) as Array<{
-          id: string;
-          room_id: string | null;
-          bed_number: string;
-          status: string | null;
-        }>).filter((bed): bed is RoomBed => Boolean(bed.room_id)),
-      );
+      const occupantMap = new Map<string, BedResident>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((admissionResult.data ?? []) as any[]).forEach((adm) => {
+        if (adm.bed_id && adm.residents) {
+          occupantMap.set(adm.bed_id, {
+            resident_id: adm.resident_id,
+            full_name: adm.residents.full_name || "Resident",
+            resident_code: adm.residents.resident_code || null,
+            phone: adm.residents.phone || null,
+            admission_date: adm.admission_date || null,
+            status: adm.status || null,
+          });
+        }
+      });
+
+      const processedBeds: RoomBed[] = ((bedResult.data ?? []) as Array<{
+        id: string;
+        room_id: string | null;
+        bed_number: string;
+        status: string | null;
+      }>)
+        .filter(
+          (bed): bed is { id: string; room_id: string; bed_number: string; status: string | null } =>
+            Boolean(bed.room_id),
+        )
+        .map((bed) => ({
+          ...bed,
+          resident: occupantMap.get(bed.id) ?? null,
+        }));
+
+      setRoomBeds(processedBeds);
       setReferencedRoomIds(
         new Set(
-          (
-            (admissionResult.data ?? []) as Array<{ room_id: string | null }>
-          )
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ((admissionResult.data ?? []) as any[])
             .map((admission) => admission.room_id)
             .filter((id): id is string => Boolean(id)),
         ),
@@ -690,7 +747,7 @@ export default function RoomsPage() {
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="grid gap-3 border-b border-slate-200 p-5 md:grid-cols-[1fr_220px_auto]">
+          <div className="grid gap-3 border-b border-slate-200 p-5 md:grid-cols-[1fr_220px_auto_auto]">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -715,6 +772,16 @@ export default function RoomsPage() {
 
             <button
               type="button"
+              onClick={() => toggleExpandAll(filteredRooms)}
+              className="rounded-xl border border-indigo-200 bg-indigo-50/60 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition whitespace-nowrap"
+            >
+              {expandedRoomIds.size === filteredRooms.length && filteredRooms.length > 0
+                ? "Collapse All Beds"
+                : "Expand All Beds"}
+            </button>
+
+            <button
+              type="button"
               onClick={() => void loadRooms()}
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
@@ -729,7 +796,7 @@ export default function RoomsPage() {
                   {[
                     "Room",
                     "Type",
-                    "Beds",
+                    "Beds & Occupants",
                     "Rent",
                     "Facilities",
                     "Status",
@@ -765,100 +832,258 @@ export default function RoomsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRooms.map((room) => (
-                    <tr key={room.id} className="hover:bg-slate-50/70">
-                      <td className="whitespace-nowrap px-5 py-4">
-                        <p className="font-semibold text-slate-900">
-                          Room {room.room_number}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {room.block_name || "No block"} · Floor{" "}
-                          {room.floor_number ?? "—"}
-                        </p>
-                      </td>
+                  filteredRooms.map((room) => {
+                    const currentRoomBeds = roomBeds.filter(
+                      (b) => b.room_id === room.id,
+                    );
+                    const occupiedCount = currentRoomBeds.filter(
+                      (b) => b.status === "Occupied" || Boolean(b.resident),
+                    ).length;
+                    const isExpanded = expandedRoomIds.has(room.id);
 
-                      <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
-                        {room.room_type}
-                      </td>
+                    return (
+                      <Fragment key={room.id}>
+                        <tr className="hover:bg-slate-50/70">
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <p className="font-semibold text-slate-900">
+                              Room {room.room_number}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {room.block_name || "No block"} · Floor{" "}
+                              {room.floor_number ?? "—"}
+                            </p>
+                          </td>
 
-                      <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-800">
-                        {roomBeds.filter(
-                          (bed) =>
-                            bed.room_id === room.id &&
-                            bed.status === "Occupied",
-                        ).length}
-                        {" / "}
-                        {room.total_beds}
-                        {roomBeds.filter(
-                          (bed) =>
-                            bed.room_id === room.id &&
-                            isOperationalBedStatus(bed.status),
-                        )
-                          .length > room.total_beds && (
-                          <p className="mt-1 max-w-48 whitespace-normal text-xs font-medium text-amber-700">
-                            Existing beds exceed capacity. Increase capacity
-                            before adding more.
-                          </p>
+                          <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                            {room.room_type}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-slate-900">
+                                {occupiedCount} / {room.total_beds} Occupied
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleRoomExpansion(room.id)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition"
+                              >
+                                {isExpanded
+                                  ? "Hide Beds ▲"
+                                  : `View Beds (${currentRoomBeds.length}) ▼`}
+                              </button>
+                            </div>
+                            {currentRoomBeds.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {currentRoomBeds.map((bed) => {
+                                  const hasResident = Boolean(bed.resident);
+                                  return (
+                                    <span
+                                      key={bed.id}
+                                      title={
+                                        hasResident
+                                          ? `${normalizeBedLabel(bed.bed_number)}: Occupied by ${bed.resident?.full_name} (${bed.resident?.resident_code || "Active"})`
+                                          : `${normalizeBedLabel(bed.bed_number)}: ${bed.status}`
+                                      }
+                                      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                                        hasResident || bed.status === "Occupied"
+                                          ? "bg-blue-100 text-blue-800"
+                                          : "bg-emerald-100 text-emerald-800"
+                                      }`}
+                                    >
+                                      {normalizeBedLabel(bed.bed_number).replace(/^Bed\s+/i, "")}
+                                      {hasResident ? " (👤)" : ""}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {currentRoomBeds.filter((bed) =>
+                              isOperationalBedStatus(bed.status),
+                            ).length > room.total_beds && (
+                              <p className="mt-1 max-w-48 whitespace-normal text-xs font-medium text-amber-700">
+                                Existing beds exceed capacity. Increase capacity
+                                before adding more.
+                              </p>
+                            )}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <p className="text-sm font-semibold text-slate-800">
+                              {formatMoney(room.monthly_rent)}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Deposit:{" "}
+                              {formatMoney(room.security_deposit_amount)}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4 text-xs text-slate-600">
+                            <div className="flex flex-wrap gap-1.5">
+                              {room.has_ac && <Tag label="AC" />}
+                              {room.has_attached_bathroom && (
+                                <Tag label="Attached Bath" />
+                              )}
+                              {room.has_balcony && <Tag label="Balcony" />}
+                              {!room.has_ac &&
+                                !room.has_attached_bathroom &&
+                                !room.has_balcony && <span>Standard</span>}
+                            </div>
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClass(
+                                room.status,
+                              )}`}
+                            >
+                              {room.status}
+                            </span>
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(room)}
+                                className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                              >
+                                Edit
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={deletingId === room.id}
+                                onClick={() => void handleDelete(room)}
+                                className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                {deletingId === room.id
+                                  ? "Updating..."
+                                  : "Archive / Delete"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {isExpanded && (
+                          <tr className="border-b border-slate-200 bg-slate-50/70">
+                            <td colSpan={7} className="px-5 py-4">
+                              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                                  <div>
+                                    <h4 className="text-sm font-bold text-slate-900">
+                                      Room {room.room_number} — Beds & Occupants
+                                    </h4>
+                                    <p className="mt-0.5 text-xs text-slate-500">
+                                      {currentRoomBeds.length} beds configured · {room.total_beds} room capacity
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                                      {
+                                        currentRoomBeds.filter(
+                                          (b) =>
+                                            b.status === "Vacant" &&
+                                            !b.resident,
+                                        ).length
+                                      }{" "}
+                                      Vacant
+                                    </span>
+                                    <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                                      {occupiedCount} Occupied
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {currentRoomBeds.length === 0 ? (
+                                  <p className="py-4 text-center text-xs text-slate-400">
+                                    No beds configured for this room yet. Add beds in the Beds module.
+                                  </p>
+                                ) : (
+                                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                    {currentRoomBeds.map((bed) => {
+                                      const res = bed.resident;
+                                      const isOccupied =
+                                        bed.status === "Occupied" ||
+                                        Boolean(res);
+                                      return (
+                                        <div
+                                          key={bed.id}
+                                          className={`rounded-xl border p-3 text-xs transition ${
+                                            isOccupied
+                                              ? "border-blue-200 bg-blue-50/40"
+                                              : "border-emerald-200 bg-emerald-50/40"
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="text-sm font-bold text-slate-900">
+                                              {normalizeBedLabel(bed.bed_number)}
+                                            </span>
+                                            <span
+                                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                                isOccupied
+                                                  ? "bg-blue-100 text-blue-700"
+                                                  : "bg-emerald-100 text-emerald-700"
+                                              }`}
+                                            >
+                                              {isOccupied
+                                                ? "Occupied"
+                                                : "Vacant"}
+                                            </span>
+                                          </div>
+
+                                          {res ? (
+                                            <div className="mt-2.5 space-y-1 rounded-lg border border-blue-100 bg-white p-2.5 shadow-2xs">
+                                              <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700">
+                                                  {res.full_name
+                                                    .slice(0, 1)
+                                                    .toUpperCase()}
+                                                </span>
+                                                <span className="truncate">
+                                                  {res.full_name}
+                                                </span>
+                                              </div>
+                                              {res.resident_code && (
+                                                <p className="text-[11px] text-slate-500">
+                                                  Resident Code:{" "}
+                                                  <span className="font-semibold text-slate-700">
+                                                    {res.resident_code}
+                                                  </span>
+                                                </p>
+                                              )}
+                                              {res.phone && (
+                                                <p className="text-[11px] text-slate-500">
+                                                  Phone:{" "}
+                                                  <span className="font-semibold text-slate-700">
+                                                    {res.phone}
+                                                  </span>
+                                                </p>
+                                              )}
+                                              {res.admission_date && (
+                                                <p className="text-[10px] text-slate-400">
+                                                  Admitted: {res.admission_date}{" "}
+                                                  ({res.status || "Active"})
+                                                </p>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <p className="mt-2 text-[11px] font-medium text-emerald-700">
+                                              ✓ Vacant & available for admission
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-4">
-                        <p className="text-sm font-semibold text-slate-800">
-                          {formatMoney(room.monthly_rent)}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          Deposit:{" "}
-                          {formatMoney(room.security_deposit_amount)}
-                        </p>
-                      </td>
-
-                      <td className="px-5 py-4 text-xs text-slate-600">
-                        <div className="flex flex-wrap gap-1.5">
-                          {room.has_ac && <Tag label="AC" />}
-                          {room.has_attached_bathroom && (
-                            <Tag label="Attached Bath" />
-                          )}
-                          {room.has_balcony && <Tag label="Balcony" />}
-                          {!room.has_ac &&
-                            !room.has_attached_bathroom &&
-                            !room.has_balcony && <span>Standard</span>}
-                        </div>
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClass(
-                            room.status
-                          )}`}
-                        >
-                          {room.status}
-                        </span>
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-4">
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditForm(room)}
-                            className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={deletingId === room.id}
-                            onClick={() => void handleDelete(room)}
-                            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                          >
-                            {deletingId === room.id
-                              ? "Updating..."
-                              : "Archive / Delete"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                      </Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>

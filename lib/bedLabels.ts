@@ -13,43 +13,52 @@ export function parseBedNumber(value: string | null | undefined) {
 }
 
 export function normalizeBedLabel(value: string | null | undefined) {
-  const number = parseBedNumber(value);
-  if (number !== null) return `Bed ${number}`;
+  if (!value) return "Bed";
+  let str = String(value).trim();
 
-  let remainder = String(value ?? "").trim();
-  while (/^bed\b/i.test(remainder)) {
-    remainder = remainder.replace(/^bed\b\s*/i, "").trim();
+  // Strip leading "Bed" or "bed" or "b" prefixes
+  while (/^bed\b[\s-_]*/i.test(str)) {
+    str = str.replace(/^bed\b[\s-_]*/i, "").trim();
   }
-  remainder = remainder.replace(/^b\s*/i, "").trim();
+  str = str.replace(/^b[\s-_]+(?=[a-z0-9])/i, "").trim();
 
-  return remainder ? `Bed ${remainder}` : "Bed";
+  // Pattern 1: Number with letter suffix (e.g. "101-A", "101 A", "101A", "101_B", "101-b")
+  const numLetterMatch = str.match(/^(\d+)[\s-_]*([a-zA-Z]+)$/);
+  if (numLetterMatch) {
+    return `Bed ${numLetterMatch[1]} ${numLetterMatch[2].toUpperCase()}`;
+  }
+
+  // Pattern 2: Letter with number (e.g. "A-101", "A 101")
+  const letterNumMatch = str.match(/^([a-zA-Z]+)[\s-_]*(\d+)$/);
+  if (letterNumMatch) {
+    return `Bed ${letterNumMatch[2]} ${letterNumMatch[1].toUpperCase()}`;
+  }
+
+  // Pattern 3: Pure number (e.g. "101", "1")
+  const numMatch = str.match(/^(\d+)$/);
+  if (numMatch) {
+    return `Bed ${numMatch[1]}`;
+  }
+
+  // Pattern 4: Custom label
+  return str ? `Bed ${str.toUpperCase()}` : "Bed";
 }
 
 export function canonicalBedLabelKey(value: string | null | undefined) {
-  const number = parseBedNumber(value);
-  return number === null
-    ? `label:${normalizeBedLabel(value).toLowerCase()}`
-    : `number:${number}`;
+  return normalizeBedLabel(value).toLowerCase().replace(/\s+/g, " ");
 }
 
 export function compareBedRecordsAscending<T extends BedLabelRecord>(
   left: T,
   right: T,
 ) {
-  const leftNumber = parseBedNumber(left.bed_number);
-  const rightNumber = parseBedNumber(right.bed_number);
+  const leftLabel = normalizeBedLabel(left.bed_number);
+  const rightLabel = normalizeBedLabel(right.bed_number);
 
-  if (leftNumber !== null && rightNumber !== null && leftNumber !== rightNumber) {
-    return leftNumber - rightNumber;
-  }
-  if (leftNumber !== null && rightNumber === null) return -1;
-  if (leftNumber === null && rightNumber !== null) return 1;
-
-  const labelComparison = normalizeBedLabel(left.bed_number).localeCompare(
-    normalizeBedLabel(right.bed_number),
-    undefined,
-    { numeric: true, sensitivity: "base" },
-  );
+  const labelComparison = leftLabel.localeCompare(rightLabel, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
   if (labelComparison !== 0) return labelComparison;
 
   const createdComparison = String(left.created_at ?? "").localeCompare(
@@ -62,19 +71,47 @@ export function compareBedRecordsAscending<T extends BedLabelRecord>(
 export function getNextCanonicalBedLabels(
   count: number,
   historicalBedNumbers: string[],
+  roomNumber?: string | null,
 ) {
-  const usedNumbers = new Set(
-    historicalBedNumbers
-      .map(parseBedNumber)
-      .filter((number): number is number => number !== null),
-  );
-  let nextNumber = Math.max(0, ...usedNumbers) + 1;
+  const usedKeys = new Set(historicalBedNumbers.map(canonicalBedLabelKey));
+
+  // Extract room prefix if available
+  let prefix = roomNumber ? String(roomNumber).trim() : "";
+  if (!prefix && historicalBedNumbers.length > 0) {
+    for (const raw of historicalBedNumbers) {
+      const match = String(raw).match(/^(\d+)/);
+      if (match) {
+        prefix = match[1];
+        break;
+      }
+    }
+  }
+
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const labels: string[] = [];
 
+  if (prefix) {
+    for (
+      let i = 0;
+      i < letters.length && labels.length < Math.max(0, count);
+      i++
+    ) {
+      const candidate = `${prefix} ${letters[i]}`;
+      const candidateKey = canonicalBedLabelKey(candidate);
+      if (!usedKeys.has(candidateKey)) {
+        labels.push(candidate);
+        usedKeys.add(candidateKey);
+      }
+    }
+  }
+
+  let nextNumber = 1;
   while (labels.length < Math.max(0, count)) {
-    if (!usedNumbers.has(nextNumber)) {
-      labels.push(`Bed ${nextNumber}`);
-      usedNumbers.add(nextNumber);
+    const candidate = prefix ? `${prefix} ${nextNumber}` : `Bed ${nextNumber}`;
+    const candidateKey = canonicalBedLabelKey(candidate);
+    if (!usedKeys.has(candidateKey)) {
+      labels.push(candidate);
+      usedKeys.add(candidateKey);
     }
     nextNumber += 1;
   }

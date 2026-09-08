@@ -237,19 +237,37 @@ export default function AdmissionsPage() {
   }, [refresh]);
 
   const filteredBeds = useMemo(() => {
+    if (!form.room_id) return [];
     const currentEditingBedId = editingId
       ? admissions.find((admission) => admission.id === editingId)?.bed_id ?? null
       : null;
 
     return beds
-      .filter(
-        (bed) =>
-          bed.room_id === form.room_id &&
-          (isAllocatableBedStatus(bed.status) ||
-            bed.id === currentEditingBedId),
-      )
-      .sort(compareBedRecordsAscending);
-  }, [admissions, beds, editingId, form.room_id]);
+      .filter((bed) => bed.room_id === form.room_id)
+      .sort(compareBedRecordsAscending)
+      .map((bed) => {
+        const isCurrentBed = bed.id === currentEditingBedId;
+        const otherAdmission = admissions.find(
+          (a) =>
+            a.bed_id === bed.id &&
+            a.id !== editingId &&
+            (a.status === "Active" || a.status === "Pending"),
+        );
+        const occupantResident = otherAdmission
+          ? residents.find((r) => r.id === otherAdmission.resident_id)
+          : null;
+        const isAllocatable =
+          isCurrentBed ||
+          (isAllocatableBedStatus(bed.status) && !otherAdmission);
+
+        return {
+          ...bed,
+          isCurrentBed,
+          isAllocatable,
+          occupantName: occupantResident?.full_name ?? null,
+        };
+      });
+  }, [admissions, beds, editingId, form.room_id, residents]);
 
   const filteredAdmissions = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1344,14 +1362,20 @@ export default function AdmissionsPage() {
                       {form.room_id ? "Select bed" : "Select a room first"}
                     </option>
 
-                    {filteredBeds.map((bed) => (
-                      <option
-                        key={bed.id}
-                        value={bed.id}
-                      >
-                        {normalizeBedLabel(bed.bed_number)} ({bed.status})
-                      </option>
-                    ))}
+                    {filteredBeds.map((bed) => {
+                      if (bed.isAllocatable) {
+                        return (
+                          <option key={bed.id} value={bed.id}>
+                            🟢 {normalizeBedLabel(bed.bed_number)} — {bed.isCurrentBed ? "Currently Assigned Bed ✓" : "Available"}
+                          </option>
+                        );
+                      }
+                      return (
+                        <option key={bed.id} value={bed.id} disabled>
+                          🔴 {normalizeBedLabel(bed.bed_number)} — Occupied {bed.occupantName ? `by ${bed.occupantName}` : `(${bed.status})`} (Unavailable)
+                        </option>
+                      );
+                    })}
                   </select>
                 </Field>
 

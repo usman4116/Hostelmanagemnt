@@ -3,30 +3,32 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { isActiveAdmin } from "@/lib/adminRoles";
+import { hasPermission, isSuperAdmin } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 
 const menuItems = [
-  { name: "Dashboard", href: "/dashboard" },
-  { name: "Admissions", href: "/admissions" },
-  { name: "Residents", href: "/residents" },
-  { name: "Rooms", href: "/rooms" },
-  { name: "Beds", href: "/beds" },
-  { name: "Payments", href: "/payments" },
-  { name: "Rent Bills", href: "/billing?type=Rent" },
-  { name: "Security Deposits", href: "/billing?type=Security Deposit" },
-  { name: "Contracts", href: "/contracts" },
-  { name: "Inspections", href: "/inspection" },
-  { name: "Maintenance", href: "/maintenance" },
-  { name: "Notices", href: "/notices" },
-  { name: "Reports", href: "/reports" },
-  { name: "Settings", href: "/settings" },
+  { name: "Dashboard", href: "/dashboard", permissionId: "dashboard" },
+  { name: "Admissions", href: "/admissions", permissionId: "admissions" },
+  { name: "Residents", href: "/residents", permissionId: "residents" },
+  { name: "Rooms", href: "/rooms", permissionId: "rooms" },
+  { name: "Beds", href: "/beds", permissionId: "beds" },
+  { name: "Payments", href: "/payments", permissionId: "payments" },
+  { name: "Rent Bills", href: "/billing?type=Rent", permissionId: "rent_bills" },
+  { name: "Security Deposits", href: "/billing?type=Security Deposit", permissionId: "security_deposits" },
+  { name: "Contracts", href: "/contracts", permissionId: "contracts" },
+  { name: "Inspections", href: "/inspection", permissionId: "inspections" },
+  { name: "Maintenance", href: "/maintenance", permissionId: "maintenance" },
+  { name: "Notices", href: "/notices", permissionId: "notices" },
+  { name: "Reports", href: "/reports", permissionId: "reports" },
+  { name: "Settings", href: "/settings", permissionId: "settings" },
 ];
 
 function SidebarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [showAdminTools, setShowAdminTools] = useState(false);
+  const [allowedPermissionIds, setAllowedPermissionIds] = useState<string[] | null>(null);
+  const [isSuper, setIsSuper] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -38,11 +40,26 @@ function SidebarContent() {
 
       const { data } = await supabase
         .from("staff_users")
-        .select("role, status")
+        .select("role, status, permissions")
         .ilike("email", email)
         .maybeSingle();
 
-      if (active) setShowAdminTools(isActiveAdmin(data?.role, data?.status));
+      if (!active) return;
+
+      const superAdminUser = isSuperAdmin(data?.role);
+      setIsSuper(superAdminUser);
+
+      const rawPerms = data?.permissions;
+      const userPerms: string[] = Array.isArray(rawPerms)
+        ? rawPerms
+        : typeof rawPerms === "string"
+        ? JSON.parse(rawPerms || "[]")
+        : [];
+
+      setAllowedPermissionIds(userPerms);
+
+      const canAccessAdmin = superAdminUser || userPerms.includes("admin_tools");
+      setShowAdminTools(canAccessAdmin);
     }
 
     void loadAdminAccess();
@@ -70,6 +87,12 @@ function SidebarContent() {
     return matchesRoute;
   }
 
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (allowedPermissionIds === null) return true;
+    if (isSuper) return true;
+    return allowedPermissionIds.includes(item.permissionId);
+  });
+
   return (
     <aside className="flex min-h-screen w-72 shrink-0 flex-col bg-slate-900 p-6 text-slate-100 dark:bg-slate-950">
       <Link
@@ -83,7 +106,7 @@ function SidebarContent() {
       </Link>
 
       <nav className="mt-10 space-y-2">
-        {menuItems.map((item) => (
+        {visibleMenuItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}

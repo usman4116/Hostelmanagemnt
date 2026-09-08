@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import StaffUserManager from "@/components/admin/StaffUserManager";
 
 type ResidentSummary = {
   id: string;
@@ -53,6 +55,17 @@ function money(value: number) {
 }
 
 export default function DataManagementPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950 text-slate-500">Loading admin tools...</main>}>
+      <DataManagementContent />
+    </Suspense>
+  );
+}
+
+function DataManagementContent() {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "data" ? "data" : "staff";
+  const [activeTab, setActiveTab] = useState<"staff" | "data">(initialTab);
   const [residents, setResidents] = useState<ResidentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [accessError, setAccessError] = useState("");
@@ -176,37 +189,77 @@ export default function DataManagementPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <section className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl sm:p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">Admin tools</p>
-          <h1 className="mt-2 text-3xl font-bold">Hostel Data Management</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">Securely remove operational records while preserving Supabase Auth, staff accounts, roles, application settings, provider configuration, and database structure.</p>
+          <h1 className="mt-2 text-3xl font-bold">Admin Tools & System Control</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">Manage staff login accounts and granular sidebar permissions, or securely reset hostel operational data.</p>
+
+          <div className="mt-6 flex flex-wrap gap-3 border-t border-slate-800/80 pt-6">
+            <button
+              type="button"
+              onClick={() => setActiveTab("staff")}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition ${
+                activeTab === "staff"
+                  ? "bg-blue-600 text-white shadow"
+                  : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              Staff Users & Permissions
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("data")}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition ${
+                activeTab === "data"
+                  ? "bg-blue-600 text-white shadow"
+                  : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+              </svg>
+              Hostel Data Management
+            </button>
+          </div>
         </section>
 
-        {accessError && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">{accessError}</div>}
+        {activeTab === "staff" && <StaffUserManager />}
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <ToolCard
-            tone="red"
-            title="Reset Hostel Data"
-            description="Clear all resident, room, billing and operational data to start fresh."
-            details="Preserves authentication, staff users, settings, roles, templates, and configuration."
-            button="Reset & Start Fresh"
-            disabled={loading || Boolean(accessError)}
-            onClick={() => openModal("reset")}
-          />
-          <ToolCard
-            tone="amber"
-            title="Delete Resident Data"
-            description="Remove a specific resident and all related records."
-            details={`${loading ? "Loading" : residents.length} resident${residents.length === 1 ? "" : "s"} available for review.`}
-            button="Manage Resident Deletion"
-            disabled={loading || Boolean(accessError)}
-            onClick={() => openModal("resident")}
-          />
-        </div>
+        {activeTab === "data" && (
+          <>
+            {accessError && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">{accessError}</div>}
 
-        <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/40">
-          <h2 className="font-bold text-blue-900 dark:text-blue-100">Protected data</h2>
-          <p className="mt-2 text-sm leading-6 text-blue-800 dark:text-blue-200">These tools never delete Supabase Auth users, staff/admin records, roles, system settings, notification provider configuration, contract templates, schema, or migrations. Every attempted destructive action is audit logged.</p>
-        </section>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <ToolCard
+                tone="red"
+                title="Reset Hostel Data"
+                description="Clear all resident, room, billing and operational data to start fresh."
+                details="Preserves authentication, staff users, settings, roles, templates, and configuration."
+                button="Reset & Start Fresh"
+                disabled={loading || Boolean(accessError)}
+                onClick={() => openModal("reset")}
+              />
+              <ToolCard
+                tone="amber"
+                title="Delete Resident Data"
+                description="Remove a specific resident and all related records."
+                details={`${loading ? "Loading" : residents.length} resident${residents.length === 1 ? "" : "s"} available for review.`}
+                button="Manage Resident Deletion"
+                disabled={loading || Boolean(accessError)}
+                onClick={() => openModal("resident")}
+              />
+            </div>
+
+            <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/40">
+              <h2 className="font-bold text-blue-900 dark:text-blue-100">Protected data</h2>
+              <p className="mt-2 text-sm leading-6 text-blue-800 dark:text-blue-200">These tools never delete Supabase Auth users, staff/admin records, roles, system settings, notification provider configuration, contract templates, schema, or migrations. Every attempted destructive action is audit logged.</p>
+            </section>
+          </>
+        )}
       </div>
 
       {modal && (

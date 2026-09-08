@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
+import { getFirstAllowedRoute } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 
 export default function AdminLoginPage() {
@@ -95,14 +96,23 @@ export default function AdminLoginPage() {
 
       const { data: staffUser, error: staffError } = await supabase
         .from("staff_users")
-        .select("email, role")
+        .select("email, role, status, permissions")
         .ilike("email", lookupEmail)
         .maybeSingle();
 
       if (!staffError && staffUser) {
+        if (String(staffUser.status ?? "").toLowerCase() !== "active") {
+          await supabase.auth.signOut();
+          recordFailedAttempt();
+          setErrorMessage("Your staff account is currently inactive. Please contact the administrator.");
+          setIsLoading(false);
+          return;
+        }
+
         localStorage.removeItem("adminLoginAttempts");
         localStorage.removeItem("adminLockoutTime");
-        window.location.href = "/dashboard";
+        const destination = getFirstAllowedRoute(staffUser.role, staffUser.permissions);
+        window.location.href = destination;
         return;
       }
 

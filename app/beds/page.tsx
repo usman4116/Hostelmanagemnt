@@ -47,6 +47,15 @@ type Room = {
   updated_at: string;
 };
 
+type BedOccupantInfo = {
+  resident_id: string;
+  full_name: string;
+  resident_code: string | null;
+  phone: string | null;
+  admission_date: string | null;
+  status: string | null;
+};
+
 type Bed = {
   id: string;
   room_id: string;
@@ -55,6 +64,7 @@ type Bed = {
   mattress_condition: string | null;
   mattress_cover: string | null;
   created_at: string;
+  occupant?: BedOccupantInfo | null;
 };
 
 type RoomForm = {
@@ -155,7 +165,10 @@ export default function RoomsPage() {
     ] = await Promise.all([
         supabase.from("rooms").select("*").order("room_number"),
         supabase.from("beds").select("*").order("bed_number"),
-        supabase.from("admissions").select("bed_id, room_id"),
+        supabase
+          .from("admissions")
+          .select("id, bed_id, room_id, resident_id, status, admission_date, residents(id, full_name, resident_code, phone)")
+          .in("status", ["Active", "Pending"]),
       ]);
 
     if (roomsError) {
@@ -163,6 +176,23 @@ export default function RoomsPage() {
       setRooms([]);
     } else {
       setRooms((roomsData ?? []) as Room[]);
+    }
+
+    const occupantMap = new Map<string, BedOccupantInfo>();
+    if (!admissionError && admissionData) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (admissionData as any[]).forEach((adm) => {
+        if (adm.bed_id && adm.residents) {
+          occupantMap.set(adm.bed_id, {
+            resident_id: adm.resident_id,
+            full_name: adm.residents.full_name || "Resident",
+            resident_code: adm.residents.resident_code || null,
+            phone: adm.residents.phone || null,
+            admission_date: adm.admission_date || null,
+            status: adm.status || null,
+          });
+        }
+      });
     }
 
     if (bedsError) {
@@ -173,7 +203,11 @@ export default function RoomsPage() {
       );
       setBeds([]);
     } else {
-      setBeds((bedsData ?? []) as Bed[]);
+      const mappedBeds: Bed[] = ((bedsData ?? []) as Bed[]).map((bed) => ({
+        ...bed,
+        occupant: occupantMap.get(bed.id) ?? null,
+      }));
+      setBeds(mappedBeds);
     }
 
     if (admissionError) {
@@ -1194,8 +1228,17 @@ function BedCard({
   canDelete?: boolean;
   onDelete?: () => void;
 }) {
+  const occupant = bed.occupant;
+  const isOccupied = bed.status === "Occupied" || Boolean(occupant);
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+    <div
+      className={`rounded-2xl border p-4 transition ${
+        isOccupied
+          ? "border-blue-200 bg-blue-50/40"
+          : "border-slate-200 bg-slate-50"
+      }`}
+    >
       <div className="flex items-center justify-between gap-3">
         <p className="font-bold text-slate-900">
           {normalizeBedLabel(bed.bed_number)}
@@ -1209,18 +1252,59 @@ function BedCard({
         </span>
       </div>
 
-      <p className="mt-3 text-xs text-slate-600">
-        Mattress: {bed.mattress_condition || "Not recorded"}
-      </p>
-      <p className="mt-1 text-xs text-slate-600">
-        Cover: {bed.mattress_cover || "Not recorded"}
-      </p>
+      {occupant ? (
+        <div className="mt-3 rounded-xl border border-blue-100 bg-white p-3 shadow-2xs">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+            Occupant Resident
+          </p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+              {occupant.full_name.slice(0, 1).toUpperCase()}
+            </span>
+            <p className="truncate text-sm font-bold text-slate-900">
+              {occupant.full_name}
+            </p>
+          </div>
+          <div className="mt-2 space-y-0.5 text-xs text-slate-600">
+            {occupant.resident_code && (
+              <p>
+                Code:{" "}
+                <span className="font-semibold text-slate-800">
+                  {occupant.resident_code}
+                </span>
+              </p>
+            )}
+            {occupant.phone && (
+              <p>
+                Phone:{" "}
+                <span className="font-semibold text-slate-800">
+                  {occupant.phone}
+                </span>
+              </p>
+            )}
+            {occupant.admission_date && (
+              <p className="text-[11px] text-slate-500">
+                Admitted: {occupant.admission_date} ({occupant.status || "Active"})
+              </p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-3 text-xs font-medium text-emerald-700">
+          ✓ Vacant · Available for Admission
+        </p>
+      )}
+
+      <div className="mt-3 flex items-center justify-between border-t border-slate-200/70 pt-2 text-[11px] text-slate-500">
+        <span>Mattress: {bed.mattress_condition || "Standard"}</span>
+        <span>Cover: {bed.mattress_cover || "Standard"}</span>
+      </div>
 
       {canDelete && onDelete && (
         <button
           type="button"
           onClick={onDelete}
-          className="mt-3 text-xs font-semibold text-red-700"
+          className="mt-3 text-xs font-semibold text-red-700 hover:text-red-800"
         >
           Delete Bed
         </button>

@@ -9,6 +9,7 @@ import DashboardStats from "@/components/dashboard/DashboardStats";
 import { buildDashboardSummary, type DashboardData, type DashboardTask } from "@/lib/dashboardData";
 import { supabase } from "@/lib/supabase";
 import { getSupabaseErrorMessage } from "@/lib/supabaseErrors";
+import { usePermissions } from "@/lib/usePermissions";
 
 const emptyData: DashboardData = {
   residents: [], admissions: [], contracts: [], bills: [], payments: [],
@@ -44,10 +45,13 @@ function formatActivityDate(value: string) {
 }
 
 export default function DashboardPage() {
+  const { hasPermission, loading: permsLoading, isSuperAdmin } = usePermissions();
   const [data, setData] = useState<DashboardData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAllActivity, setShowAllActivity] = useState(false);
+
+  const canAccessDashboard = permsLoading || isSuperAdmin || hasPermission("dashboard");
 
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
@@ -109,54 +113,71 @@ export default function DashboardPage() {
 
           {error && <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200">{error}</div>}
 
-          <DashboardStats data={data} />
+          {!canAccessDashboard ? (
+            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
+                <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="m4.93 4.93 14.14 14.14" />
+                </svg>
+              </div>
+              <h3 className="mt-4 text-2xl font-bold text-slate-900 dark:text-white">Dashboard Access Restricted</h3>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Your staff account does not have permission to view the main hostel dashboard. Please select an authorized module from the sidebar navigation.
+              </p>
+            </div>
+          ) : (
+            <>
+              <DashboardStats data={data} />
 
-          <h3 className="mb-6 text-2xl font-semibold text-gray-800 dark:text-slate-100">Quick Actions</h3>
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            {quickActions.map((action) => (
-              <Link key={action.href} href={action.href} className="rounded-2xl bg-white p-6 text-slate-950 shadow-lg transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-200 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-blue-800">
-                <div className="text-4xl" aria-hidden="true">{action.icon}</div>
-                <h4 className="mt-4 text-xl font-bold">{action.title}</h4>
-                <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">{action.description}</p>
-              </Link>
-            ))}
-          </div>
-
-          <div className="mt-10 grid gap-6 lg:grid-cols-2">
-            <section className="rounded-2xl bg-white p-6 text-slate-950 shadow-lg dark:bg-slate-800 dark:text-slate-100">
-              <h3 className="text-xl font-bold">Today&apos;s Tasks</h3>
-              <div className="mt-5 space-y-3">
-                {loading ? <p className="rounded-xl border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">Loading current tasks...</p> : summary.tasks.length === 0 ? <p className="rounded-xl border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No urgent tasks right now.</p> : summary.tasks.map((item) => (
-                  <Link key={item.id} href={item.href} className={`flex items-center justify-between gap-4 rounded-xl border p-4 transition hover:brightness-95 ${taskTone[item.tone]}`}>
-                    <span className="font-medium">{item.count} {item.label}</span><span aria-hidden="true" className="text-lg">→</span>
+              <h3 className="mb-6 text-2xl font-semibold text-gray-800 dark:text-slate-100">Quick Actions</h3>
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+                {quickActions.map((action) => (
+                  <Link key={action.href} href={action.href} className="rounded-2xl bg-white p-6 text-slate-950 shadow-lg transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-200 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-blue-800">
+                    <div className="text-4xl" aria-hidden="true">{action.icon}</div>
+                    <h4 className="mt-4 text-xl font-bold">{action.title}</h4>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">{action.description}</p>
                   </Link>
                 ))}
               </div>
-            </section>
 
-            <section className="rounded-2xl bg-white p-6 text-slate-950 shadow-lg dark:bg-slate-800 dark:text-slate-100">
-              <h3 className="text-xl font-bold">Recent Activity</h3>
-              <div className="mt-5 space-y-4">
-                {loading ? <p className="text-sm text-slate-600 dark:text-slate-300">Loading recent activity...</p> : summary.activities.length === 0 ? <p className="text-sm text-slate-600 dark:text-slate-300">No recent activity is available.</p> : visibleActivities.map((activity) => (
-                  <Link key={activity.id} href={activity.href} className={`block border-l-4 pl-4 transition hover:bg-slate-50 dark:hover:bg-slate-700/70 ${activityTone[activity.tone]}`}>
-                    <p className="font-medium text-slate-800 dark:text-slate-100">{activity.description}</p>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{formatActivityDate(activity.occurredAt)}</p>
-                  </Link>
-                ))}
+              <div className="mt-10 grid gap-6 lg:grid-cols-2">
+                <section className="rounded-2xl bg-white p-6 text-slate-950 shadow-lg dark:bg-slate-800 dark:text-slate-100">
+                  <h3 className="text-xl font-bold">Today&apos;s Tasks</h3>
+                  <div className="mt-5 space-y-3">
+                    {loading ? <p className="rounded-xl border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">Loading current tasks...</p> : summary.tasks.length === 0 ? <p className="rounded-xl border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No urgent tasks right now.</p> : summary.tasks.map((item) => (
+                      <Link key={item.id} href={item.href} className={`flex items-center justify-between gap-4 rounded-xl border p-4 transition hover:brightness-95 ${taskTone[item.tone]}`}>
+                        <span className="font-medium">{item.count} {item.label}</span><span aria-hidden="true" className="text-lg">→</span>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl bg-white p-6 text-slate-950 shadow-lg dark:bg-slate-800 dark:text-slate-100">
+                  <h3 className="text-xl font-bold">Recent Activity</h3>
+                  <div className="mt-5 space-y-4">
+                    {loading ? <p className="text-sm text-slate-600 dark:text-slate-300">Loading recent activity...</p> : summary.activities.length === 0 ? <p className="text-sm text-slate-600 dark:text-slate-300">No recent activity is available.</p> : visibleActivities.map((activity) => (
+                      <Link key={activity.id} href={activity.href} className={`block border-l-4 pl-4 transition hover:bg-slate-50 dark:hover:bg-slate-700/70 ${activityTone[activity.tone]}`}>
+                        <p className="font-medium text-slate-800 dark:text-slate-100">{activity.description}</p>
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{formatActivityDate(activity.occurredAt)}</p>
+                      </Link>
+                    ))}
+                  </div>
+                  {!loading && summary.activities.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllActivity((current) => !current)}
+                      className="mt-5 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700"
+                    >
+                      {showAllActivity ? "Show Less" : "View All Recent Activity"}
+                    </button>
+                  )}
+                </section>
               </div>
-              {!loading && summary.activities.length > 3 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllActivity((current) => !current)}
-                  className="mt-5 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700"
-                >
-                  {showAllActivity ? "Show Less" : "View All Recent Activity"}
-                </button>
-              )}
-            </section>
-          </div>
-          
-          <DashboardCharts data={data} />
+              
+              <DashboardCharts data={data} />
+            </>
+          )}
           
         </section>
       </div>

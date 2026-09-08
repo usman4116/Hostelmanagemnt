@@ -49,6 +49,14 @@ type Bed = {
   status: string | null;
 };
 
+type AdmissionOccupant = {
+  admission_id: string;
+  bed_id: string;
+  resident_name: string;
+  resident_code: string | null;
+  status: string | null;
+};
+
 type ResidentForm = {
   fullName: string;
   fatherName: string;
@@ -110,6 +118,7 @@ export default function AdmissionForm({
   const [residents, setResidents] = useState<Resident[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [beds, setBeds] = useState<Bed[]>([]);
+  const [occupants, setOccupants] = useState<Map<string, AdmissionOccupant>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -153,7 +162,7 @@ export default function AdmissionForm({
   }, []);
 
   const loadRoomsAndBeds = useCallback(async () => {
-    const [roomResult, bedResult] = await Promise.all([
+    const [roomResult, bedResult, admissionsResult] = await Promise.all([
       supabase
         .from("rooms")
         .select("id, room_number, status")
@@ -161,8 +170,11 @@ export default function AdmissionForm({
       supabase
         .from("beds")
         .select("id, room_id, bed_number, status")
-        .in("status", [...ALLOCATABLE_BED_STATUSES])
         .order("bed_number", { ascending: true }),
+      supabase
+        .from("admissions")
+        .select("id, bed_id, room_id, status, residents(id, full_name, resident_code)")
+        .in("status", ["Active", "Pending"]),
     ]);
 
     if (roomResult.error) {
@@ -182,12 +194,27 @@ export default function AdmissionForm({
       );
     }
 
+    const occupantMap = new Map<string, AdmissionOccupant>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ((admissionsResult.data ?? []) as any[]).forEach((item) => {
+      if (item.bed_id) {
+        occupantMap.set(item.bed_id, {
+          admission_id: item.id,
+          bed_id: item.bed_id,
+          resident_name: item.residents?.full_name || "Resident",
+          resident_code: item.residents?.resident_code || null,
+          status: item.status,
+        });
+      }
+    });
+
     setRooms(
       ((roomResult.data ?? []) as Room[]).filter(
         (room) => isAdmissionRoomStatus(room.status),
       ),
     );
     setBeds((bedResult.data ?? []) as Bed[]);
+    setOccupants(occupantMap);
   }, []);
 
   useEffect(() => {
@@ -224,15 +251,37 @@ export default function AdmissionForm({
     };
   }, [showResidentModal]);
 
-  const availableBeds = useMemo(
+  const roomBedsList = useMemo(
     () =>
-      beds.filter(
-        (bed) =>
-          String(bed.room_id) === roomId &&
-          isAllocatableBedStatus(bed.status),
-      ).sort(compareBedRecordsAscending),
+      beds
+        .filter((bed) => String(bed.room_id) === roomId)
+        .sort(compareBedRecordsAscending),
     [beds, roomId],
   );
+
+  const availableBeds = useMemo(
+    () =>
+      roomBedsList.filter(
+        (bed) =>
+          isAllocatableBedStatus(bed.status) && !occupants.has(bed.id),
+      ),
+    [roomBedsList, occupants],
+  );
+
+  const roomBedStats = useMemo(() => {
+    const stats = new Map<string, { total: number; available: number; occupied: number }>();
+    rooms.forEach((r) => {
+      const roomAllBeds = beds.filter((b) => String(b.room_id) === String(r.id));
+      const available = roomAllBeds.filter(
+        (b) => isAllocatableBedStatus(b.status) && !occupants.has(b.id),
+      ).length;
+      const occupied = roomAllBeds.filter(
+        (b) => b.status === BED_STATUS.OCCUPIED || occupants.has(b.id),
+      ).length;
+      stats.set(r.id, { total: roomAllBeds.length, available, occupied });
+    });
+    return stats;
+  }, [rooms, beds, occupants]);
 
   function closeResidentModal() {
     if (savingResident) return;
@@ -493,6 +542,15 @@ export default function AdmissionForm({
               ? loginError.message
               : "Please try again."
           }`,
+        );
+      }
+
+      if (occupants.has(bedId)) {
+        const existing = occupants.get(bedId);
+        await loadRoomsAndBeds();
+        setBedId("");
+        throw new Error(
+          `This bed is already occupied by ${existing?.resident_name || "another resident"}. Please select an available bed.`,
         );
       }
 
@@ -768,11 +826,17 @@ export default function AdmissionForm({
                 disabled={loading || saving}
               >
                 <option value="">Select room</option>
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.room_number}
-                  </option>
-                ))}
+                {rooms.map((room) => {
+                  const stat = roomBedStats.get(room.id);
+                  const availableCount = stat ? stat.available : 0;
+                  const totalCount = stat ? stat.total : 0;
+                  const isFull = availableCount === 0 && totalCount > 0;
+                  return (
+                    <option key={room.id} value={room.id}>
+                      Room {room.room_number} ({availableCount} of {totalCount} beds available){isFull ? " — FULL" : ""}
+                    </option>
+                  );
+                })}
               </select>
             </label>
 
@@ -788,13 +852,29 @@ export default function AdmissionForm({
                 disabled={!roomId || loading || saving}
               >
                 <option value="">
-                  {roomId ? "Select vacant bed" : "Select a room first"}
+                  {!roomId
+                    ? "Select a room first"
+                    : availableBeds.length === 0
+                    ? "No vacant beds in this room"
+                    : "Select available bed"}
                 </option>
-                {availableBeds.map((bed) => (
-                  <option key={bed.id} value={bed.id}>
-                    {normalizeBedLabel(bed.bed_number)}
-                  </option>
-                ))}
+                {roomBedsList.map((bed) => {
+                  const occupant = occupants.get(bed.id);
+                  const isAvailable =
+                    isAllocatableBedStatus(bed.status) && !occupant;
+                  if (isAvailable) {
+                    return (
+                      <option key={bed.id} value={bed.id}>
+                        🟢 {normalizeBedLabel(bed.bed_number)} — Available ({bed.status})
+                      </option>
+                    );
+                  }
+                  return (
+                    <option key={bed.id} value={bed.id} disabled>
+                      🔴 {normalizeBedLabel(bed.bed_number)} — Occupied by {occupant?.resident_name || "Resident"} (Unavailable)
+                    </option>
+                  );
+                })}
               </select>
             </label>
 
@@ -822,7 +902,78 @@ export default function AdmissionForm({
                 disabled
               />
             </label>
+          </div>
 
+          {roomId && (
+            <div
+              className={`rounded-2xl border p-4 text-sm ${
+                availableBeds.length === 0
+                  ? "border-amber-200 bg-amber-50 text-amber-900"
+                  : "border-indigo-100 bg-indigo-50/70 text-indigo-900"
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-semibold">
+                  Room {rooms.find((r) => r.id === roomId)?.room_number} Bed Allocation Status:
+                </p>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-700 shadow-xs">
+                  {availableBeds.length} Available / {roomBedsList.length} Total Beds
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {roomBedsList.map((bed) => {
+                  const occupant = occupants.get(bed.id);
+                  const isAvailable =
+                    isAllocatableBedStatus(bed.status) && !occupant;
+                  const isSelected = bedId === bed.id;
+                  return (
+                    <button
+                      type="button"
+                      key={bed.id}
+                      disabled={!isAvailable || saving}
+                      onClick={() => {
+                        if (isAvailable && !saving) setBedId(bed.id);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-medium transition ${
+                        isAvailable
+                          ? isSelected
+                            ? "border-emerald-600 bg-emerald-600 text-white font-bold ring-2 ring-emerald-300"
+                            : "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                          : "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                      }`}
+                    >
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          isAvailable
+                            ? isSelected
+                              ? "bg-white"
+                              : "bg-emerald-500"
+                            : "bg-red-400"
+                        }`}
+                      />
+                      <span className="font-bold">
+                        {normalizeBedLabel(bed.bed_number)}:
+                      </span>
+                      {isAvailable ? (
+                        <span>{isSelected ? "Selected ✓" : "Available"}</span>
+                      ) : (
+                        <span className="font-semibold text-slate-700">
+                          Occupied by {occupant?.resident_name || "Resident"}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {availableBeds.length === 0 && (
+                <p className="mt-2.5 text-xs font-semibold text-amber-800">
+                  ⚠️ This room has no available beds. All beds are occupied. Please select another room above.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <label className="md:col-span-2 xl:col-span-4">
               <span className="mb-2 block text-sm font-semibold text-slate-700">
                 Special Contract Clauses (Optional)
