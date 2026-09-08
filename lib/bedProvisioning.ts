@@ -344,3 +344,207 @@ export async function provisionRoomBeds({
     errors: result.error ? [result.error] : [],
   };
 }
+
+export async function addSingleBed({
+  roomId,
+  bedNumber,
+  mattressCondition,
+  mattressCover,
+}: {
+  roomId: string;
+  bedNumber?: string;
+  mattressCondition?: string | null;
+  mattressCover?: string | null;
+}): Promise<{
+  success: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  bed?: any;
+  newCapacity?: number;
+  error?: string;
+}> {
+  const { data: room, error: roomError } = await supabase
+    .from("rooms")
+    .select("id, room_number, capacity, total_beds, status")
+    .eq("id", roomId)
+    .maybeSingle();
+
+  if (roomError || !room) {
+    return { success: false, error: "The room could not be found." };
+  }
+
+  if (room.status === "Inactive") {
+    return { success: false, error: "Cannot add beds to an Inactive room." };
+  }
+
+  const { data: existingBeds, error: bedListError } = await supabase
+    .from("beds")
+    .select("id, bed_number, status")
+    .eq("room_id", roomId);
+
+  if (bedListError) {
+    return { success: false, error: "Unable to verify existing beds in this room." };
+  }
+
+  const existingBedNumbers = (existingBeds ?? []).map((b) => b.bed_number);
+  const finalBedNumber = bedNumber?.trim()
+    ? normalizeBedLabel(bedNumber.trim())
+    : normalizeBedLabel(
+        getNextCanonicalBedLabels(1, existingBedNumbers, room.room_number)[0] ||
+          `${room.room_number} A`,
+      );
+
+  const canonicalKey = canonicalBedLabelKey(finalBedNumber);
+  if (
+    (existingBeds ?? []).some(
+      (b) => canonicalBedLabelKey(b.bed_number) === canonicalKey,
+    )
+  ) {
+    return {
+      success: false,
+      error: `A bed with number "${finalBedNumber}" already exists in Room ${room.room_number}.`,
+    };
+  }
+
+  const { data: newBed, error: insertError } = await supabase
+    .from("beds")
+    .insert({
+      room_id: roomId,
+      bed_number: finalBedNumber,
+      status: BED_STATUS.VACANT,
+      mattress_condition: mattressCondition?.trim() || null,
+      mattress_cover: mattressCover?.trim() || null,
+    })
+    .select("*")
+    .single();
+
+  if (insertError || !newBed) {
+    return {
+      success: false,
+      error: getSupabaseErrorMessage(insertError, "The bed could not be created."),
+    };
+  }
+
+  const currentOperationalCount =
+    (existingBeds ?? []).filter((b) => isOperationalBedStatus(b.status)).length + 1;
+
+  const currentCap = Number(room.capacity) || Number(room.total_beds) || 1;
+  let newCapacity = currentCap;
+  if (currentOperationalCount > currentCap) {
+    newCapacity = currentOperationalCount;
+    await supabase
+      .from("rooms")
+      .update({
+        capacity: newCapacity,
+        total_beds: newCapacity,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", roomId);
+  }
+
+  return { success: true, bed: newBed, newCapacity };
+}
+
+export async function removeSingleBed({
+  bedId,
+  roomId,
+}: {
+  bedId: string;
+  roomId?: string;
+}): Promise<{ success: boolean; newCapacity?: number; error?: string }> {
+  const { data: bed, error: bedError } = await supabase
+    .from("beds")
+    .select("id, room_id, bed_number, status")
+    .eq("id", bedId)
+    .maybeSingle();
+
+  if (bedError || !bed) {
+    return { success: false, error: "The bed could not be found." };
+  }
+
+  const effectiveRoomId = roomId || bed.room_id;
+
+  if (bed.status === BED_STATUS.OCCUPIED) {
+    return {
+      success: false,
+      error: `Cannot remove ${normalizeBedLabel(bed.bed_number)} because it is currently Occupied.`,
+    };
+  }
+
+  const { data: activeAdm, error: admError } = await supabase
+    .from("admissions")
+    .select("id")
+    .eq("bed_id", bedId)
+    .in("status", ["Active", "Pending"])
+    .limit(1)
+    .maybeSingle();
+
+  if (admError) {
+    return { success: false, error: "Could not verify bed assignments." };
+  }
+
+  if (activeAdm) {
+    return {
+      success: false,
+      error: `Cannot remove ${normalizeBedLabel(bed.bed_number)} because an active resident is allocated to it.`,
+    };
+  }
+
+  const { error: deleteError } = await supabase
+    .from("beds")
+    .delete()
+    .eq("id", bedId)
+    .neq("status", BED_STATUS.OCCUPIED);
+
+  if (deleteError) {
+    const { error: inactiveError } = await supabase
+      .from("beds")
+      .update({
+        status: BED_STATUS.INACTIVE,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", bedId);
+
+    if (inactiveError) {
+      return {
+        success: false,
+        error: getSupabaseErrorMessage(deleteError, "The bed could not be removed."),
+      };
+    }
+  }
+
+  if (effectiveRoomId) {
+    const { data: remainingBeds } = await supabase
+      .from("beds")
+      .select("id, status")
+      .eq("room_id", effectiveRoomId);
+
+    const remainingOperationalCount = (remainingBeds ?? []).filter(
+      (b) => b.id !== bedId && isOperationalBedStatus(b.status),
+    ).length;
+
+    const { data: currentRoom } = await supabase
+      .from("rooms")
+      .select("id, capacity, total_beds")
+      .eq("id", effectiveRoomId)
+      .maybeSingle();
+
+    if (currentRoom) {
+      const currentCap =
+        Number(currentRoom.capacity) || Number(currentRoom.total_beds) || 1;
+      const newCapacity = Math.max(1, remainingOperationalCount);
+      if (newCapacity < currentCap) {
+        await supabase
+          .from("rooms")
+          .update({
+            capacity: newCapacity,
+            total_beds: newCapacity,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", effectiveRoomId);
+      }
+      return { success: true, newCapacity };
+    }
+  }
+
+  return { success: true };
+}

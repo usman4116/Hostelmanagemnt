@@ -4,14 +4,16 @@ import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import {
+  addSingleBed,
   prepareRoomBedCapacity,
   provisionRoomBeds,
+  removeSingleBed,
   rollbackRoomBedChanges,
   type BedCapacityResult,
 } from "@/lib/bedProvisioning";
 import { getSupabaseErrorMessage } from "@/lib/supabaseErrors";
 import { isOperationalBedStatus } from "@/lib/statuses";
-import { normalizeBedLabel } from "@/lib/bedLabels";
+import { getNextCanonicalBedLabels, normalizeBedLabel } from "@/lib/bedLabels";
 
 type RoomStatus =
   | "Available"
@@ -523,6 +525,77 @@ export default function RoomsPage() {
     setDeletingId(null);
   }
 
+  async function handleAddBedToRoom(room: Room) {
+    const existingRoomBeds = roomBeds
+      .filter((b) => b.room_id === room.id)
+      .map((b) => b.bed_number);
+    const nextLabels = getNextCanonicalBedLabels(
+      1,
+      existingRoomBeds,
+      room.room_number,
+    );
+    const suggested = nextLabels[0] || `${room.room_number} A`;
+
+    const userLabel = window.prompt(
+      `Add a new bed to Room ${room.room_number}.\nEnter bed label:`,
+      suggested,
+    );
+    if (!userLabel || !userLabel.trim()) return;
+
+    setError("");
+    setMessage("");
+
+    const result = await addSingleBed({
+      roomId: room.id,
+      bedNumber: userLabel.trim(),
+    });
+
+    if (!result.success) {
+      setError(result.error || "The bed could not be added.");
+    } else {
+      setMessage(
+        `Bed "${normalizeBedLabel(userLabel)}" added to Room ${room.room_number}.${
+          result.newCapacity
+            ? ` Room capacity automatically updated to ${result.newCapacity}.`
+            : ""
+        }`,
+      );
+      await loadRooms();
+    }
+  }
+
+  async function handleRemoveBedFromRoom(bed: RoomBed, room: Room) {
+    const label = normalizeBedLabel(bed.bed_number);
+    if (
+      !window.confirm(
+        `Are you sure you want to remove ${label} from Room ${room.room_number}? The room's capacity will be adjusted automatically.`,
+      )
+    ) {
+      return;
+    }
+
+    setError("");
+    setMessage("");
+
+    const result = await removeSingleBed({
+      bedId: bed.id,
+      roomId: room.id,
+    });
+
+    if (!result.success) {
+      setError(result.error || "The bed could not be removed.");
+    } else {
+      setMessage(
+        `Bed ${label} removed from Room ${room.room_number}.${
+          result.newCapacity
+            ? ` Room capacity updated to ${result.newCapacity}.`
+            : ""
+        }`,
+      );
+      await loadRooms();
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -1008,12 +1081,21 @@ export default function RoomsPage() {
                                     <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
                                       {occupiedCount} Occupied
                                     </span>
+                                    {room.status !== "Inactive" && (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleAddBedToRoom(room)}
+                                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
+                                      >
+                                        + Add Bed
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
 
                                 {currentRoomBeds.length === 0 ? (
                                   <p className="py-4 text-center text-xs text-slate-400">
-                                    No beds configured for this room yet. Add beds in the Beds module.
+                                    No beds configured for this room yet. Click "+ Add Bed" above to add one.
                                   </p>
                                 ) : (
                                   <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1084,9 +1166,31 @@ export default function RoomsPage() {
                                               )}
                                             </div>
                                           ) : (
-                                            <p className="mt-2 text-[11px] font-medium text-emerald-700">
-                                              ✓ Vacant & available for admission
-                                            </p>
+                                            <div className="mt-2.5 flex items-center justify-between gap-1 border-t border-emerald-100 pt-2">
+                                              <span className="text-[11px] font-medium text-emerald-700">
+                                                ✓ Vacant
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => void handleRemoveBedFromRoom(bed, room)}
+                                                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50/70 px-2 py-0.5 text-[10px] font-semibold text-red-700 hover:bg-red-100 hover:border-red-300 transition"
+                                              >
+                                                <svg
+                                                  className="h-3 w-3"
+                                                  fill="none"
+                                                  viewBox="0 0 24 24"
+                                                  stroke="currentColor"
+                                                >
+                                                  <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                  />
+                                                </svg>
+                                                Remove
+                                              </button>
+                                            </div>
                                           )}
                                         </div>
                                       );

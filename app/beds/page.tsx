@@ -10,8 +10,10 @@ import {
 } from "react";
 import { supabase } from "@/lib/supabase";
 import {
+  addSingleBed,
   prepareRoomBedCapacity,
   provisionRoomBeds,
+  removeSingleBed,
   rollbackRoomBedChanges,
   type BedCapacityResult,
 } from "@/lib/bedProvisioning";
@@ -19,6 +21,7 @@ import { getSupabaseErrorMessage } from "@/lib/supabaseErrors";
 import {
   canonicalBedLabelKey,
   compareBedRecordsAscending,
+  getNextCanonicalBedLabels,
   normalizeBedLabel,
   parseBedNumber,
 } from "@/lib/bedLabels";
@@ -320,8 +323,26 @@ export default function RoomsPage() {
 
   function updateBedField<K extends keyof BedForm>(
     key: K,
-    value: BedForm[K]
+    value: BedForm[K],
   ) {
+    if (key === "room_id" && typeof value === "string") {
+      const selectedRoom = rooms.find((r) => r.id === value);
+      const roomExistingBeds = beds
+        .filter((b) => b.room_id === value)
+        .map((b) => b.bed_number);
+      const nextLabels = getNextCanonicalBedLabels(
+        1,
+        roomExistingBeds,
+        selectedRoom?.room_number,
+      );
+      const suggested = nextLabels[0] || `${selectedRoom?.room_number ?? ""} A`;
+      setBedForm((current) => ({
+        ...current,
+        room_id: value,
+        bed_number: suggested,
+      }));
+      return;
+    }
     setBedForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -361,36 +382,39 @@ export default function RoomsPage() {
   }
 
   function openAddBed(roomId = "") {
+    const activeRooms = rooms.filter((room) => room.status !== "Inactive");
     const selectedRoom = roomId
       ? rooms.find((room) => room.id === roomId)
-      : roomsWithBedCapacity[0];
+      : activeRooms[0] || rooms[0];
 
     if (!selectedRoom || selectedRoom.status === "Inactive") {
-      setError("No active room currently has space for another bed.");
+      setError("Please select an active room before adding a bed.");
       setShowBedForm(false);
       return;
     }
 
-    const existingBedCount = beds.filter(
-      (bed) =>
-        bed.room_id === selectedRoom.id && isOperationalBedStatus(bed.status),
-    ).length;
-    if (existingBedCount >= selectedRoom.capacity) {
-      setError(
-        `Room ${selectedRoom.room_number} is at capacity. Increase its capacity before adding another bed.`,
-      );
-      setShowBedForm(false);
-      return;
-    }
+    const roomExistingBeds = beds
+      .filter((bed) => bed.room_id === selectedRoom.id)
+      .map((bed) => bed.bed_number);
+
+    const nextLabels = getNextCanonicalBedLabels(
+      1,
+      roomExistingBeds,
+      selectedRoom.room_number,
+    );
+    const suggestedBedNumber =
+      nextLabels[0] || `${selectedRoom.room_number} A`;
 
     setBedForm({
       ...emptyBedForm,
       room_id: selectedRoom.id,
+      bed_number: suggestedBedNumber,
     });
     setShowBedForm(true);
     setShowRoomForm(false);
     setMessage("");
     setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function saveRoom(event: FormEvent<HTMLFormElement>) {
@@ -527,79 +551,23 @@ export default function RoomsPage() {
       return;
     }
 
-    const selectedRoom = rooms.find((room) => room.id === bedForm.room_id);
-    const existingBedCount = beds.filter(
-      (bed) =>
-        bed.room_id === bedForm.room_id && isOperationalBedStatus(bed.status),
-    ).length;
-
-    if (!selectedRoom) {
-      setError("The selected room could not be found.");
-      setSavingBed(false);
-      return;
-    }
-
-    if (existingBedCount >= selectedRoom.capacity) {
-      setError(
-        `Room ${selectedRoom.room_number} is at its capacity of ${selectedRoom.capacity} beds. Increase the room capacity before adding another bed.`,
-      );
-      setSavingBed(false);
-      return;
-    }
-
-    if (selectedRoom.status === "Inactive") {
-      setError("Beds cannot be added to an Inactive room.");
-      setSavingBed(false);
-      return;
-    }
-
-    const parsedBedNumber = parseBedNumber(bedForm.bed_number);
-    if (parsedBedNumber === null) {
-      setError("Bed number must include a positive whole number.");
-      setSavingBed(false);
-      return;
-    }
-
-    const canonicalBedNumber = normalizeBedLabel(bedForm.bed_number);
-    const canonicalKey = canonicalBedLabelKey(canonicalBedNumber);
-    const { data: currentRoomBeds, error: duplicateCheckError } = await supabase
-      .from("beds")
-      .select("id, bed_number")
-      .eq("room_id", bedForm.room_id)
-      .order("created_at", { ascending: true });
-
-    if (duplicateCheckError) {
-      setError("The bed number could not be verified. Nothing was saved.");
-      setSavingBed(false);
-      return;
-    }
-
-    if (
-      (currentRoomBeds ?? []).some(
-        (bed) => canonicalBedLabelKey(bed.bed_number) === canonicalKey,
-      )
-    ) {
-      setError("A bed with this number already exists in the selected room.");
-      setSavingBed(false);
-      return;
-    }
-
-    const { error: bedError } = await supabase.from("beds").insert({
-      room_id: bedForm.room_id,
-      bed_number: canonicalBedNumber,
-      status: BED_STATUS.VACANT,
-      mattress_condition: bedForm.mattress_condition.trim() || null,
-      mattress_cover: bedForm.mattress_cover.trim() || null,
+    const result = await addSingleBed({
+      roomId: bedForm.room_id,
+      bedNumber: bedForm.bed_number,
+      mattressCondition: bedForm.mattress_condition,
+      mattressCover: bedForm.mattress_cover,
     });
 
-    if (bedError) {
-      setError(
-        /foreign key|constraint|23503/i.test(bedError.message)
-          ? "The selected room is no longer available. Refresh the page and choose an active room."
-          : getSupabaseErrorMessage(bedError, "The bed could not be added."),
-      );
+    if (!result.success) {
+      setError(result.error || "The bed could not be added.");
     } else {
-      setMessage("Bed added successfully.");
+      setMessage(
+        `Bed "${normalizeBedLabel(bedForm.bed_number)}" added successfully.${
+          result.newCapacity
+            ? ` Room capacity automatically updated to ${result.newCapacity}.`
+            : ""
+        }`,
+      );
       setShowBedForm(false);
       setBedForm(emptyBedForm);
       await refresh();
@@ -660,61 +628,38 @@ export default function RoomsPage() {
   }
 
   async function deleteBed(bed: Bed) {
-    if (
-      bed.status === BED_STATUS.OCCUPIED ||
-      referencedBedIds.has(bed.id)
-    ) {
-      setError("Allocated or referenced beds cannot be deleted.");
+    if (bed.status === BED_STATUS.OCCUPIED || referencedBedIds.has(bed.id)) {
+      setError("Occupied beds with active residents cannot be removed.");
       return;
     }
 
-    if (!window.confirm(`Delete ${normalizeBedLabel(bed.bed_number)}?`)) return;
-
-    const { data: currentBed, error: bedCheckError } = await supabase
-      .from("beds")
-      .select("id, status")
-      .eq("id", bed.id)
-      .maybeSingle();
-    const { data: admissionReference, error: referenceError } = await supabase
-      .from("admissions")
-      .select("id")
-      .eq("bed_id", bed.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (bedCheckError || referenceError) {
-      setError("The bed allocation could not be verified. Nothing was deleted.");
-      return;
-    }
+    const bedLabel = normalizeBedLabel(bed.bed_number);
+    const room = rooms.find((r) => r.id === bed.room_id);
+    const roomText = room ? ` from Room ${room.room_number}` : "";
 
     if (
-      !currentBed ||
-      currentBed.status === BED_STATUS.OCCUPIED ||
-      admissionReference
+      !window.confirm(
+        `Are you sure you want to remove ${bedLabel}${roomText}? The room's capacity will be adjusted automatically.`,
+      )
     ) {
-      setError("Allocated or referenced beds cannot be deleted.");
-      await refresh();
       return;
     }
 
-    const { data: deletedBed, error: deleteError } = await supabase
-      .from("beds")
-      .delete()
-      .eq("id", bed.id)
-      .neq("status", BED_STATUS.OCCUPIED)
-      .select("id")
-      .maybeSingle();
+    const result = await removeSingleBed({
+      bedId: bed.id,
+      roomId: bed.room_id,
+    });
 
-    if (deleteError) {
-      setError(
-        /foreign key|constraint|23503/i.test(deleteError.message)
-          ? "This bed is referenced by an admission or another record and cannot be deleted."
-          : "The bed could not be deleted. Please try again.",
-      );
-    } else if (!deletedBed) {
-      setError("The bed is no longer eligible for deletion.");
+    if (!result.success) {
+      setError(result.error || "The bed could not be removed.");
     } else {
-      setMessage("Bed deleted successfully.");
+      setMessage(
+        `Bed ${bedLabel} removed successfully.${
+          result.newCapacity
+            ? ` Room capacity updated to ${result.newCapacity}.`
+            : ""
+        }`,
+      );
       await refresh();
     }
   }
@@ -938,11 +883,20 @@ export default function RoomsPage() {
                     className={inputClass}
                   >
                     <option value="">Select room</option>
-                    {roomsWithBedCapacity.map((room) => (
-                      <option key={room.id} value={room.id}>
-                        {room.room_number}
-                      </option>
-                    ))}
+                    {rooms
+                      .filter((room) => room.status !== "Inactive")
+                      .map((room) => {
+                        const roomActiveBeds = beds.filter(
+                          (b) =>
+                            b.room_id === room.id &&
+                            isOperationalBedStatus(b.status),
+                        ).length;
+                        return (
+                          <option key={room.id} value={room.id}>
+                            Room {room.room_number} ({roomActiveBeds} / {room.capacity} beds)
+                          </option>
+                        );
+                      })}
                   </select>
                 </Field>
 
@@ -954,8 +908,11 @@ export default function RoomsPage() {
                       updateBedField("bed_number", event.target.value)
                     }
                     className={inputClass}
-                    placeholder="B1"
+                    placeholder="e.g. 106 E"
                   />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Auto-suggested for this room. You can also customize the label.
+                  </p>
                 </Field>
 
                 <Field label="Status">
@@ -1089,9 +1046,7 @@ export default function RoomsPage() {
                 ).length;
                 const roomHasLinks =
                   roomBeds.length > 0 || referencedRoomIds.has(room.id);
-                const canAddBed =
-                  room.status !== "Inactive" &&
-                  activeRoomBeds.length < room.capacity;
+                const canAddBed = room.status !== "Inactive";
                 const exceedsCapacity = activeRoomBeds.length > room.capacity;
 
                 return (
@@ -1126,9 +1081,9 @@ export default function RoomsPage() {
                           <button
                             type="button"
                             onClick={() => openAddBed(room.id)}
-                            className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700"
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
                           >
-                            Add Bed
+                            + Add Bed
                           </button>
                         )}
                         <button
@@ -1222,7 +1177,15 @@ export default function RoomsPage() {
                             className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
                           >
                             {inactiveRoomBeds.map((bed) => (
-                              <BedCard key={bed.id} bed={bed} />
+                              <BedCard
+                                key={bed.id}
+                                bed={bed}
+                                canDelete={
+                                  bed.status !== BED_STATUS.OCCUPIED &&
+                                  !referencedBedIds.has(bed.id)
+                                }
+                                onDelete={() => void deleteBed(bed)}
+                              />
                             ))}
                           </div>
                         )}
@@ -1320,15 +1283,32 @@ function BedCard({
         <span>Cover: {bed.mattress_cover || "Standard"}</span>
       </div>
 
-      {canDelete && onDelete && (
+      {canDelete && onDelete ? (
         <button
           type="button"
           onClick={onDelete}
-          className="mt-3 text-xs font-semibold text-red-700 hover:text-red-800"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/70 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 hover:border-red-300 transition"
         >
-          Delete Bed
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
+          </svg>
+          Remove Bed
         </button>
-      )}
+      ) : isOccupied ? (
+        <p className="mt-3 text-[11px] font-medium text-slate-400 italic">
+          Occupied · Cannot remove
+        </p>
+      ) : null}
     </div>
   );
 }
