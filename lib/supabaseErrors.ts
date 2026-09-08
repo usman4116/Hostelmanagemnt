@@ -31,5 +31,9 @@ export function getSupabaseErrorMessage(
     return "Unable to connect to the database. Please check your connection and try again.";
   }
 
+  if (message && (code.startsWith("PGRST") || isMissingColumnError(error))) {
+    return `${fallback} (${message})`;
+  }
+
   return fallback;
 }

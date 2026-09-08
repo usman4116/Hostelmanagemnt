@@ -175,7 +175,19 @@ export default function RoomsPage() {
       setError(getSupabaseErrorMessage(roomsError, "Rooms could not be loaded."));
       setRooms([]);
     } else {
-      setRooms((roomsData ?? []) as Room[]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mappedRooms = (roomsData ?? []).map((r: any) => ({
+        ...r,
+        building_name: r.building_name ?? r.block_name ?? null,
+        floor:
+          r.floor ??
+          (r.floor_number !== null && r.floor_number !== undefined
+            ? String(r.floor_number)
+            : null),
+        notes: r.notes ?? r.description ?? null,
+        capacity: r.capacity ?? r.total_beds ?? 1,
+      }));
+      setRooms(mappedRooms as Room[]);
     }
 
     const occupantMap = new Map<string, BedOccupantInfo>();
@@ -394,18 +406,26 @@ export default function RoomsPage() {
     }
 
     const capacity = Math.max(1, Number(roomForm.capacity) || 1);
+    const parsedFloorNumber =
+      roomForm.floor && /^-?\d+$/.test(roomForm.floor.trim())
+        ? parseInt(roomForm.floor.trim(), 10)
+        : null;
+
     const payload = {
       room_number: roomForm.room_number.trim(),
       building_name: roomForm.building_name.trim() || null,
+      block_name: roomForm.building_name.trim() || null,
       floor: roomForm.floor.trim() || null,
-      room_type: roomForm.room_type.trim() || null,
+      floor_number: parsedFloorNumber,
+      room_type: roomForm.room_type.trim() || "Shared",
       capacity,
       total_beds: capacity,
       status: roomForm.status,
       monthly_rent: roomForm.monthly_rent
         ? Number(roomForm.monthly_rent)
-        : null,
+        : 0,
       notes: roomForm.notes.trim() || null,
+      description: roomForm.notes.trim() || null,
       updated_at: new Date().toISOString(),
     };
 

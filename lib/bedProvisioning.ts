@@ -62,14 +62,15 @@ function emptyResult(): BedCapacityResult {
 export function getMissingBedNumbers(
   capacity: number,
   existingBedNumbers: string[],
+  roomNumber?: string | null,
 ) {
   const missingCount = Math.max(capacity - existingBedNumbers.length, 0);
-  return getNextCanonicalBedLabels(missingCount, existingBedNumbers);
+  return getNextCanonicalBedLabels(missingCount, existingBedNumbers, roomNumber);
 }
 
 async function getRoomBeds(roomId: string) {
   const [roomResult, bedResult] = await Promise.all([
-    supabase.from("rooms").select("id").eq("id", roomId).maybeSingle(),
+    supabase.from("rooms").select("id, room_number").eq("id", roomId).maybeSingle(),
     supabase
       .from("beds")
       .select("id, room_id, bed_number, status, created_at")
@@ -79,6 +80,7 @@ async function getRoomBeds(roomId: string) {
   const error = roomResult.error || bedResult.error;
   if (error || !roomResult.data) {
     return {
+      room: null,
       beds: [] as BedRow[],
       error: getSupabaseErrorMessage(
         error,
@@ -87,7 +89,11 @@ async function getRoomBeds(roomId: string) {
     };
   }
 
-  return { beds: (bedResult.data ?? []) as BedRow[], error: null };
+  return {
+    room: roomResult.data as { id: string; room_number: string },
+    beds: (bedResult.data ?? []) as BedRow[],
+    error: null,
+  };
 }
 
 async function operationalAdmissionForBed(bedId: string) {
@@ -291,6 +297,7 @@ export async function prepareRoomBedCapacity({
   const missingBedNumbers = getNextCanonicalBedLabels(
     capacity - activeAfterRestore,
     current.beds.map((bed) => bed.bed_number),
+    current.room?.room_number,
   );
 
   for (const bedNumber of missingBedNumbers) {

@@ -30,17 +30,22 @@ export default function AddRoomPage() {
       return;
     }
 
+    const parsedFloorNumber =
+      floor && /^-?\d+$/.test(floor.trim()) ? parseInt(floor.trim(), 10) : null;
+
     const { data: room, error: roomError } = await supabase
       .from("rooms")
       .insert({
         room_number: roomNumber.trim(),
-        floor: floor || null,
+        floor: floor.trim() || null,
+        floor_number: parsedFloorNumber,
         capacity: parsedCapacity,
         total_beds: parsedCapacity,
         monthly_rent: Number(monthlyRent) || 0,
         room_type: roomType || "Shared",
         status: status || "Available",
         notes: notes.trim() || null,
+        description: notes.trim() || null,
       })
       .select("id")
       .single();
