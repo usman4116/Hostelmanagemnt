@@ -1,5 +1,8 @@
 import { supabase } from "@/lib/supabase";
-import { getSupabaseErrorMessage } from "@/lib/supabaseErrors";
+import {
+  getSupabaseErrorMessage,
+  isMissingColumnError,
+} from "@/lib/supabaseErrors";
 import {
   canonicalBedLabelKey,
   compareBedRecordsAscending,
@@ -405,17 +408,34 @@ export async function addSingleBed({
     };
   }
 
-  const { data: newBed, error: insertError } = await supabase
+  const insertPayload: Record<string, unknown> = {
+    room_id: roomId,
+    bed_number: finalBedNumber,
+    status: BED_STATUS.VACANT,
+    mattress_condition: mattressCondition?.trim() || null,
+    mattress_cover: mattressCover?.trim() || null,
+  };
+
+  let { data: newBed, error: insertError } = await supabase
     .from("beds")
-    .insert({
+    .insert(insertPayload)
+    .select("*")
+    .single();
+
+  if (insertError && isMissingColumnError(insertError)) {
+    const fallbackPayload = {
       room_id: roomId,
       bed_number: finalBedNumber,
       status: BED_STATUS.VACANT,
-      mattress_condition: mattressCondition?.trim() || null,
-      mattress_cover: mattressCover?.trim() || null,
-    })
-    .select("*")
-    .single();
+    };
+    const retry = await supabase
+      .from("beds")
+      .insert(fallbackPayload)
+      .select("*")
+      .single();
+    newBed = retry.data;
+    insertError = retry.error;
+  }
 
   if (insertError || !newBed) {
     return {
