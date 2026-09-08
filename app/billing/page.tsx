@@ -802,6 +802,22 @@ function BillingContent() {
       if (insertError) throw insertError;
 
       await refreshBillFinancials(recordingPaymentBill.id);
+
+      const isDepositBill =
+        recordingPaymentBill.bill_type === "Security Deposit" ||
+        recordingPaymentBill.billing_month === "Security Deposit" ||
+        recordingPaymentBill.bill_number.startsWith("DEP-");
+      if (isDepositBill && amount >= Number(recordingPaymentBill.balance_amount)) {
+        let admissionUpdate = supabase
+          .from("admissions")
+          .update({ deposit_status: "Held", updated_at: new Date().toISOString() })
+          .eq("resident_id", recordingPaymentBill.resident_id)
+          .eq("deposit_status", "Pending");
+        if (recordingPaymentBill.admission_id) {
+          admissionUpdate = admissionUpdate.eq("id", recordingPaymentBill.admission_id);
+        }
+        await admissionUpdate;
+      }
       
       setMessage("Payment successfully recorded.");
       setRecordingPaymentBill(null);

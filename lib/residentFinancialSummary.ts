@@ -72,7 +72,15 @@ function monthValue(input: unknown) {
 }
 
 function isReceivedDeposit(status: unknown) {
-  return ["received", "verified", "paid"].includes(normalized(status));
+  return ["received", "verified", "paid", "held"].includes(normalized(status));
+}
+
+function isSecurityDepositBillRow(row: FinancialRow) {
+  return (
+    normalized(value(row, "bill_type")) === "security deposit" ||
+    normalized(value(row, "billing_month")) === "security deposit" ||
+    String(value(row, "bill_number") ?? "").toUpperCase().startsWith("DEP-")
+  );
 }
 
 export function buildResidentFinancialSummary({
@@ -109,6 +117,9 @@ export function buildResidentFinancialSummary({
     })
     .sort((a, b) => b.month.localeCompare(a.month));
 
+  const depositBillItem = activeBills.find((item) => isSecurityDepositBillRow(item.bill)) ?? null;
+  const regularBillItems = activeBills.filter((item) => !isSecurityDepositBillRow(item.bill));
+
   let rentDue = 0;
   let rentOverdue = false;
   let rentCharges = 0;
@@ -119,7 +130,7 @@ export function buildResidentFinancialSummary({
   const utilityItems: FinancialLineItem[] = [];
   const otherItems: FinancialLineItem[] = [];
 
-  for (const item of activeBills) {
+  for (const item of regularBillItems) {
     let paymentRemaining = item.appliedPaid;
     const rent = roundMoney(billNumber(item.bill, "rent_amount", "room_rent"));
     const electricity = roundMoney(billNumber(item.bill, "electricity_amount"));
@@ -169,24 +180,56 @@ export function buildResidentFinancialSummary({
     }
   }
 
-  const currentBill = activeBills[0] ?? null;
+  const currentBill = regularBillItems[0] ?? null;
   const monthlyRent = currentBill
     ? roundMoney(numberValue(currentBill.bill.rent_amount, currentBill.bill.room_rent))
     : roundMoney(numberValue(admission?.monthly_rent, room?.monthly_rent, bed?.monthly_rent));
-  const depositRequired = roundMoney(numberValue(admission?.security_deposit, admission?.deposit_amount));
+  const depositRequired = depositBillItem
+    ? depositBillItem.total
+    : roundMoney(numberValue(admission?.security_deposit, admission?.deposit_amount));
   const depositReceived = isReceivedDeposit(value(admission, "deposit_status"));
-  const depositPaid = depositReceived ? depositRequired : 0;
-  const totalCharges = roundMoney(activeBills.reduce((sum, item) => sum + item.total, 0));
-  const verifiedPayments = roundMoney(activeBills.reduce((sum, item) => sum + item.verifiedPaid, 0));
-  const appliedPayments = roundMoney(activeBills.reduce((sum, item) => sum + item.appliedPaid, 0));
-  const totalOutstanding = roundMoney(activeBills.reduce((sum, item) => sum + item.balance, 0));
-  const outstandingBills = activeBills.filter((item) => item.balance > 0);
-  const deadlines = outstandingBills.map((item) => item.dueDate).filter((date): date is string => Boolean(date)).sort();
-  const accountStatus = outstandingBills.some((item) => item.status === "Overdue")
-    ? "Overdue"
-    : totalOutstanding > 0
-      ? "Pending"
-      : "Paid";
+  const depositPaid = depositBillItem
+    ? depositBillItem.appliedPaid
+    : depositReceived
+      ? depositRequired
+      : 0;
+  const depositBalance = depositBillItem
+    ? depositBillItem.balance
+    : Math.max(roundMoney(depositRequired - depositPaid), 0);
+  const depositStatus =
+    depositBalance === 0 && depositRequired > 0
+      ? "Held"
+      : String(
+          value(admission, "deposit_status") ??
+            (depositRequired > 0 ? "Pending" : "Not required"),
+        );
+
+  const totalCharges = roundMoney(
+    regularBillItems.reduce((sum, item) => sum + item.total, 0) + depositRequired,
+  );
+  const verifiedPayments = roundMoney(
+    regularBillItems.reduce((sum, item) => sum + item.verifiedPaid, 0) + depositPaid,
+  );
+  const appliedPayments = roundMoney(
+    regularBillItems.reduce((sum, item) => sum + item.appliedPaid, 0) + depositPaid,
+  );
+  const totalOutstanding = roundMoney(
+    regularBillItems.reduce((sum, item) => sum + item.balance, 0) + depositBalance,
+  );
+  const outstandingBills = regularBillItems.filter((item) => item.balance > 0);
+  const deadlines = [
+    ...outstandingBills.map((item) => item.dueDate),
+    depositBalance > 0 && depositBillItem?.dueDate ? depositBillItem.dueDate : null,
+  ]
+    .filter((date): date is string => Boolean(date))
+    .sort();
+  const accountStatus =
+    outstandingBills.some((item) => item.status === "Overdue") ||
+    (depositBalance > 0 && depositBillItem?.status === "Overdue")
+      ? "Overdue"
+      : totalOutstanding > 0
+        ? "Pending"
+        : "Paid";
 
   return {
     monthlyRent,

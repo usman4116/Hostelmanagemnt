@@ -62,6 +62,18 @@ function billStatus(
   return "Pending";
 }
 
+function isSecurityDepositBill(bill: {
+  bill_type?: unknown;
+  billing_month?: unknown;
+  bill_number?: unknown;
+}) {
+  return (
+    normalized(bill.bill_type) === "security deposit" ||
+    normalized(bill.billing_month) === "security deposit" ||
+    String(bill.bill_number ?? "").toUpperCase().startsWith("DEP-")
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const token = bearerToken(request);
@@ -324,6 +336,53 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Synchronize any auto-generated security deposit bill for this resident/admission
+      const { data: matchingDepBills } = await supabaseAdmin
+        .from("bills")
+        .select("id, total_amount, paid_amount, balance_amount, bill_status")
+        .eq("resident_id", receipt.resident_id)
+        .or("bill_type.eq.Security Deposit,billing_month.eq.Security Deposit,bill_number.ilike.DEP-%")
+        .neq("bill_status", "Cancelled")
+        .limit(1);
+
+      if (matchingDepBills && matchingDepBills.length > 0) {
+        const depBill = matchingDepBills[0];
+        await supabaseAdmin
+          .from("bills")
+          .update({
+            paid_amount: depBill.total_amount,
+            balance_amount: 0,
+            bill_status: "Paid",
+            updated_at: verifiedAt,
+          })
+          .eq("id", depBill.id);
+
+        const { data: existingBillPayment } = await supabaseAdmin
+          .from("payments")
+          .select("id")
+          .eq("bill_id", depBill.id)
+          .maybeSingle();
+
+        if (!existingBillPayment) {
+          await supabaseAdmin.from("payments").insert({
+            resident_id: receipt.resident_id,
+            bill_id: depBill.id,
+            payment_number: paymentNumber(receipt.id),
+            payment_date: verifiedAt.slice(0, 10),
+            payment_method: paymentMethod(receipt.notes) || "Bank Transfer",
+            reference_number: receipt.reference_number,
+            amount: receiptAmount,
+            payment_status: "Verified",
+            verified: true,
+            verified_by: verifier,
+            verified_at: verifiedAt,
+            notes: "Verified from security deposit receipt.",
+            created_at: verifiedAt,
+            updated_at: verifiedAt,
+          });
+        }
+      }
+
       const notification = await notifyResidentEvent("payment_verified", receipt.id);
       return NextResponse.json(
         {
@@ -341,7 +400,7 @@ export async function POST(request: NextRequest) {
     const { data: bill, error: billError } = await supabaseAdmin
       .from("bills")
       .select(
-        "id, resident_id, admission_id, total_amount, paid_amount, balance_amount, due_date, bill_status",
+        "id, resident_id, admission_id, total_amount, paid_amount, balance_amount, due_date, bill_status, bill_type, billing_month, bill_number",
       )
       .eq("id", receipt.bill_id)
       .maybeSingle();
@@ -574,6 +633,20 @@ export async function POST(request: NextRequest) {
         "The payment was verified, but the receipt link could not be finalized. Review the canonical payment before retrying.",
         500,
       );
+    }
+
+    if (isSecurityDepositBill(bill) && nextBillStatus === "Paid") {
+      let admissionUpdate = supabaseAdmin
+        .from("admissions")
+        .update({ deposit_status: "Held", updated_at: verifiedAt })
+        .eq("resident_id", receipt.resident_id)
+        .eq("deposit_status", "Pending");
+
+      if (bill.admission_id) {
+        admissionUpdate = admissionUpdate.eq("id", bill.admission_id);
+      }
+
+      await admissionUpdate;
     }
 
     const notification = await notifyResidentEvent(
