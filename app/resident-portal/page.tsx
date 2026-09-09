@@ -621,18 +621,24 @@ export default function ResidentPortalPage() {
           {activeTab === "Inspections" && (
             <Card title="Inspection History">
               <DataTable
-                headers={["Inspection No.", "Date", "Type", "Area", "Condition", "Status"]}
+                headers={["Inspection No.", "Date", "Type", "Overall Condition", "Status", "Action"]}
                 rows={inspections.map((inspection) => [
                   firstText(inspection, ["inspection_number"]) || "—",
                   firstText(inspection, ["inspection_date"]).slice(0, 10) || "—",
                   firstText(inspection, ["inspection_type"]) || "Routine",
-                  firstText(inspection, ["area_type"]) || "Room",
-                  firstText(inspection, ["overall_status"]) || "—",
-                  firstText(inspection, ["status"]) || "Pending",
+                  firstText(inspection, ["overall_status"]) || "Good",
+                  firstText(inspection, ["status"]) || "Completed",
+                  <Link
+                    key={text(inspection.id)}
+                    href={`/resident-portal/inspections/${inspection.id}`}
+                    className="inline-flex items-center rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition"
+                  >
+                    View Report →
+                  </Link>,
                 ])}
               />
               {!isReadOnlyView && (
-                <Link href="/resident-portal/inspections" className="mt-5 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white">
+                <Link href="/resident-portal/inspections" className="mt-5 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 transition">
                   View Full Inspection History
                 </Link>
               )}
@@ -688,7 +694,7 @@ function InfoGrid({ items }: { items: [string, string][] }) {
   );
 }
 
-function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+function DataTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200">
       <table className="min-w-full divide-y divide-slate-200">
