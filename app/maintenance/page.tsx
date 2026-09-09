@@ -201,6 +201,11 @@ export default function MaintenancePage() {
   const [uploading, setUploading] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [completeModalRequest, setCompleteModalRequest] = useState<MaintenanceRequest | null>(null);
+  const [completeCostInput, setCompleteCostInput] = useState("");
+  const [completeNotesInput, setCompleteNotesInput] = useState("");
+  const [completing, setCompleting] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -629,6 +634,80 @@ export default function MaintenancePage() {
     await refresh();
   }
 
+  async function quickApprove(request: MaintenanceRequest) {
+    setApprovingId(request.id);
+    setMessage("");
+    setError("");
+
+    try {
+      const now = new Date().toISOString();
+      const today = now.slice(0, 10);
+      const { error: updateErr } = await supabase
+        .from("maintenance_requests")
+        .update({
+          status: "In Progress",
+          assigned_date: request.assigned_date || today,
+          updated_at: now,
+        })
+        .eq("id", request.id);
+
+      if (updateErr) {
+        setError(getSupabaseErrorMessage(updateErr, "Failed to approve maintenance request."));
+      } else {
+        setMessage(`Maintenance request ${request.request_number} approved and marked In Progress.`);
+        await refresh();
+      }
+    } catch (err) {
+      setError("Failed to approve request.");
+    } finally {
+      setApprovingId(null);
+    }
+  }
+
+  function openQuickCompleteModal(request: MaintenanceRequest) {
+    setCompleteModalRequest(request);
+    setCompleteCostInput(String(request.actual_cost || request.estimated_cost || 0));
+    setCompleteNotesInput(request.notes || "");
+  }
+
+  async function submitQuickComplete(e: FormEvent) {
+    e.preventDefault();
+    if (!completeModalRequest) return;
+    setCompleting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const now = new Date().toISOString();
+      const today = now.slice(0, 10);
+      const cost = Number(completeCostInput || 0);
+
+      const { error: updateErr } = await supabase
+        .from("maintenance_requests")
+        .update({
+          status: "Completed",
+          completion_date: today,
+          completed_at: now,
+          actual_cost: Number.isFinite(cost) && cost >= 0 ? cost : 0,
+          notes: completeNotesInput.trim() || completeModalRequest.notes || null,
+          updated_at: now,
+        })
+        .eq("id", completeModalRequest.id);
+
+      if (updateErr) {
+        setError(getSupabaseErrorMessage(updateErr, "Failed to mark maintenance request as completed."));
+      } else {
+        setMessage(`Maintenance request ${completeModalRequest.request_number} marked as Completed.`);
+        setCompleteModalRequest(null);
+        await refresh();
+      }
+    } catch {
+      setError("Failed to mark request as completed.");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   function handlePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     if (file) {
@@ -860,7 +939,7 @@ export default function MaintenancePage() {
                     className={inputClass}
                   >
                     <option value="Open">Open</option>
-                    {(form.status === "Pending" || requests.some((request) => request.status === "Pending")) && <option value="Pending">Pending (Legacy)</option>}
+                    <option value="Pending">Pending Approval</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Completed">Completed</option>
                     <option value="Cancelled">Cancelled</option>
@@ -1079,8 +1158,8 @@ export default function MaintenancePage() {
             >
               <option value="Current">Current</option>
               <option value="All">All Statuses</option>
+              <option value="Pending">Pending Approval / New</option>
               <option value="Open">Open</option>
-              <option value="Pending">Pending (Legacy)</option>
               <option value="In Progress">In Progress</option>
               <option value="Completed">Completed</option>
               <option value="Cancelled">Cancelled</option>
@@ -1231,26 +1310,66 @@ export default function MaintenancePage() {
                         </td>
 
                         <td className="px-5 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            <Link href={`/maintenance/${request.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">View</Link>
-                            {!archived && <button
-                              type="button"
-                              onClick={() => openEditForm(request)}
-                              className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700"
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Link
+                              href={`/maintenance/${request.id}`}
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm"
                             >
-                              Edit
-                            </button>}
+                              View
+                            </Link>
 
-                            {!archived && request.status !== "Cancelled" && <button
-                              type="button"
-                              onClick={() =>
-                                void cancelRequest(request)
-                              }
-                              className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
-                            >
-                              Cancel
-                            </button>}
-                            {!archived && <button type="button" onClick={() => void archiveRequest(request)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700">Archive</button>}
+                            {!archived && (request.status === "Pending" || request.status === "Open") && (
+                              <button
+                                type="button"
+                                disabled={approvingId === request.id}
+                                onClick={() => void quickApprove(request)}
+                                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 shadow-sm transition disabled:opacity-50"
+                                title="Approve & Set to In Progress"
+                              >
+                                {approvingId === request.id ? "Approving..." : "✓ Approve"}
+                              </button>
+                            )}
+
+                            {!archived && request.status !== "Completed" && request.status !== "Cancelled" && (
+                              <button
+                                type="button"
+                                onClick={() => openQuickCompleteModal(request)}
+                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-sm transition"
+                                title="Mark as Completed"
+                              >
+                                ✓ Complete
+                              </button>
+                            )}
+
+                            {!archived && (
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(request)}
+                                className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
+                              >
+                                Edit
+                              </button>
+                            )}
+
+                            {!archived && request.status !== "Cancelled" && (
+                              <button
+                                type="button"
+                                onClick={() => void cancelRequest(request)}
+                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                              >
+                                Cancel
+                              </button>
+                            )}
+
+                            {!archived && (
+                              <button
+                                type="button"
+                                onClick={() => void archiveRequest(request)}
+                                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition"
+                              >
+                                Archive
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1261,6 +1380,84 @@ export default function MaintenancePage() {
             </table>
           </div>
         </section>
+
+        {/* Quick Complete Modal */}
+        {completeModalRequest && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Mark Maintenance as Completed</h3>
+                  <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                    {completeModalRequest.request_number} — {completeModalRequest.title}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCompleteModalRequest(null)}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={submitQuickComplete} className="mt-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Actual Cost (PKR)
+                  </label>
+                  <div className="relative mt-1.5">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-4 font-bold text-slate-400">
+                      Rs
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={completeCostInput}
+                      onChange={(e) => setCompleteCostInput(e.target.value)}
+                      placeholder="0"
+                      className="w-full rounded-xl border border-slate-300 bg-white pl-12 pr-4 py-2.5 text-sm font-bold text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <span className="text-[11px] text-slate-400">
+                    Estimated cost was Rs {Number(completeModalRequest.estimated_cost || 0).toLocaleString()}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Resolution Notes / Work Performed
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={completeNotesInput}
+                    onChange={(e) => setCompleteNotesInput(e.target.value)}
+                    placeholder="Describe work completed, technician notes, or parts replaced..."
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setCompleteModalRequest(null)}
+                    className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={completing}
+                    className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {completing ? "Completing..." : "Confirm & Complete"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
