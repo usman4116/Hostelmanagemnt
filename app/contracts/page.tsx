@@ -98,10 +98,36 @@ type ContractForm = {
   terms: string;
 };
 
+type ContractTemplateRecord = {
+  id: string;
+  template_name: string;
+  title: string;
+  content: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
 const today = new Date().toISOString().slice(0, 10);
 
-const defaultTerms =
-  "1. Monthly rent must be paid by the due date.\n2. Security deposit is refundable only when the resident serves at least 30 days notice before leaving.\n3. Room and bed allocation is decided manually by the owner.\n4. Damage charges may be deducted from the security deposit.\n5. The resident must follow hostel rules and inspection procedures.";
+const recommendedStandardTerms = `1. RENT & PAYMENT TERMS:
+Monthly rent must be paid in advance by the due date specified in the rent schedule. Late payments may incur administrative charges.
+
+2. SECURITY DEPOSIT & REFUND POLICY:
+The security deposit is strictly refundable upon successful vacating procedure, provided:
+- The resident serves at least a 30-day prior written notice before departure.
+- All pending rent, utility, and damage assessments are fully settled.
+
+3. ROOM & BED ALLOCATION:
+Room and bed assignments are allocated by hostel administration. Residents are strictly prohibited from swapping or sub-leasing their assigned bed.
+
+4. MAINTENANCE & DAMAGE LIABILITY:
+Residents must maintain cleanliness and keep hostel assets in good order. Any damage identified during routine or checkout room inspections will be deducted from the security deposit.
+
+5. CODE OF CONDUCT & HOSTEL RULES:
+Residents must adhere to hostel curfew times, visitor guidelines, and security protocols. Creating disturbances or engaging in prohibited activities will lead to immediate contract termination.`;
+
+const defaultTerms = recommendedStandardTerms;
 
 const emptyForm: ContractForm = {
   contract_number: "",
@@ -159,6 +185,13 @@ export default function ContractsPage() {
   const [form, setForm] = useState<ContractForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showStandardModal, setShowStandardModal] = useState(false);
+  const [standardTemplate, setStandardTemplate] = useState<ContractTemplateRecord | null>(null);
+  const [standardTitle, setStandardTitle] = useState("Standard Residency Contract");
+  const [standardTemplateName, setStandardTemplateName] = useState("Standard Template");
+  const [standardContent, setStandardContent] = useState(defaultTerms);
+  const [savingStandard, setSavingStandard] = useState(false);
+  const [standardModalError, setStandardModalError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
@@ -176,12 +209,14 @@ export default function ContractsPage() {
       { data: admissionsData, error: admissionsError },
       { data: roomsData, error: roomsError },
       { data: bedsData, error: bedsError },
+      { data: templatesData, error: templatesError },
     ] = await Promise.all([
       supabase.from("contracts").select("*").order("created_at", { ascending: false }),
       supabase.from("residents").select("id, full_name, status").order("full_name"),
       supabase.from("admissions").select("*").order("created_at", { ascending: false }),
       supabase.from("rooms").select("id, room_number").order("room_number"),
       supabase.from("beds").select("id, bed_number").order("bed_number"),
+      supabase.from("contract_templates").select("*").order("is_active", { ascending: false }).order("created_at", { ascending: false }),
     ]);
 
     const firstError =
@@ -189,7 +224,8 @@ export default function ContractsPage() {
       residentsError ||
       admissionsError ||
       roomsError ||
-      bedsError;
+      bedsError ||
+      templatesError;
 
     if (firstError) {
       setError(
@@ -205,6 +241,16 @@ export default function ContractsPage() {
     setAdmissions((admissionsData ?? []) as Admission[]);
     setRooms((roomsData ?? []) as Room[]);
     setBeds((bedsData ?? []) as Bed[]);
+
+    const loadedTemplates = (templatesData ?? []) as ContractTemplateRecord[];
+    const active = loadedTemplates.find((t) => t.is_active) || loadedTemplates[0] || null;
+    if (active) {
+      setStandardTemplate(active);
+      setStandardTitle(active.title || "Standard Residency Contract");
+      setStandardTemplateName(active.template_name || "Standard Template");
+      setStandardContent(active.content || defaultTerms);
+    }
+
     setLoading(false);
   }, []);
 
@@ -250,6 +296,96 @@ export default function ContractsPage() {
     value: ContractForm[K]
   ) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function openStandardContractModal() {
+    if (standardTemplate) {
+      setStandardTitle(standardTemplate.title || "Standard Residency Contract");
+      setStandardTemplateName(standardTemplate.template_name || "Standard Template");
+      setStandardContent(standardTemplate.content || defaultTerms);
+    }
+    setStandardModalError("");
+    setShowStandardModal(true);
+  }
+
+  async function saveStandardContract(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSavingStandard(true);
+    setStandardModalError("");
+
+    const cleanTitle = standardTitle.trim();
+    const cleanTemplateName = standardTemplateName.trim() || "Standard Template";
+    const cleanContent = standardContent.trim();
+
+    if (!cleanTitle) {
+      setStandardModalError("Please enter a title for the Standard Residency Contract.");
+      setSavingStandard(false);
+      return;
+    }
+
+    if (!cleanContent) {
+      setStandardModalError("Please enter the contract terms, rules, and conditions.");
+      setSavingStandard(false);
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      let targetId = standardTemplate?.id;
+
+      if (targetId) {
+        const { error: updateError } = await supabase
+          .from("contract_templates")
+          .update({
+            title: cleanTitle,
+            template_name: cleanTemplateName,
+            content: cleanContent,
+            is_active: true,
+            updated_at: now,
+          })
+          .eq("id", targetId);
+
+        if (updateError) throw updateError;
+      } else {
+        const { data: newRec, error: insertError } = await supabase
+          .from("contract_templates")
+          .insert({
+            title: cleanTitle,
+            template_name: cleanTemplateName,
+            content: cleanContent,
+            is_active: true,
+            created_at: now,
+            updated_at: now,
+          })
+          .select("id")
+          .single();
+
+        if (insertError) throw insertError;
+        targetId = newRec?.id;
+      }
+
+      if (targetId) {
+        await supabase
+          .from("contract_templates")
+          .update({ is_active: false })
+          .neq("id", targetId);
+      }
+
+      setMessage("Standard Residency Contract format updated successfully. All new contracts will be sent with this standard format.");
+      setShowStandardModal(false);
+      await refresh();
+    } catch (err) {
+      setStandardModalError(
+        err instanceof Error
+          ? err.message
+          : getSupabaseErrorMessage(
+              err as { code?: string; message?: string },
+              "Unable to save standard contract format. Please try again.",
+            )
+      );
+    } finally {
+      setSavingStandard(false);
+    }
   }
 
   function openEditForm(contract: Contract) {
@@ -533,12 +669,38 @@ export default function ContractsPage() {
             </p>
           </div>
 
-          <Link
-            href="/contracts/add"
-            className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
-          >
-            + Add Contract
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={openStandardContractModal}
+              className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-3 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100 hover:border-indigo-300"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4 text-indigo-600"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              Standard Residency Contract
+            </button>
+
+            <Link
+              href="/contracts/add"
+              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+            >
+              + Add Contract
+            </Link>
+          </div>
         </section>
 
         {(message || error) && (
@@ -1076,6 +1238,122 @@ export default function ContractsPage() {
             </table>
           </div>
         </section>
+
+        {showStandardModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+            <div className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl sm:p-8">
+              <div className="mb-6 flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
+                      Active Master Format for All Contracts
+                    </span>
+                  </div>
+                  <h2 className="mt-2 text-2xl font-bold text-slate-900">
+                    Set Standard Residency Contract
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Configure the master contract template. All resident contracts created or prepared in the hostel will automatically be sent using this standard format.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowStandardModal(false)}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {standardModalError && (
+                <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+                  {standardModalError}
+                </div>
+              )}
+
+              <form onSubmit={saveStandardContract} className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Contract Title *
+                    </label>
+                    <input
+                      required
+                      value={standardTitle}
+                      onChange={(e) => setStandardTitle(e.target.value)}
+                      className={inputClass}
+                      placeholder="e.g. Standard Residency Contract"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Template Identifier
+                    </label>
+                    <input
+                      value={standardTemplateName}
+                      onChange={(e) => setStandardTemplateName(e.target.value)}
+                      className={inputClass}
+                      placeholder="e.g. Standard Template"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="text-sm font-semibold text-slate-700">
+                      Standard Terms, Rules & Regulations *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setStandardContent(recommendedStandardTerms)}
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                    >
+                      ↺ Reset to Recommended Terms
+                    </button>
+                  </div>
+                  <textarea
+                    required
+                    rows={14}
+                    value={standardContent}
+                    onChange={(e) => setStandardContent(e.target.value)}
+                    className={`${inputClass} font-mono text-xs leading-relaxed`}
+                    placeholder="Enter standard clauses and hostel rules..."
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    These terms are automatically applied when preparing new resident contracts. Residents will review and sign this agreement in the Resident Portal.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs text-blue-800">
+                  <p className="font-semibold">ℹ️ How it works:</p>
+                  <p className="mt-1">
+                    When staff creates or prepares a contract for an admitted resident, this active standard agreement is attached as the binding contract content. Any customized special clauses for a resident can still be added in the notes field during preparation.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-5">
+                  <button
+                    type="button"
+                    onClick={() => setShowStandardModal(false)}
+                    disabled={savingStandard}
+                    className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingStandard}
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {savingStandard ? "Saving..." : "Save Standard Format"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

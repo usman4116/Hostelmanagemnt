@@ -21,7 +21,7 @@ type Admission = {
   notice_period_days: number;
   status: string;
 };
-type ContractTemplate = { id: number; title: string; content: string };
+type ContractTemplate = { id: string; title: string; content: string };
 type Room = { id: string; room_number: string };
 type Bed = { id: string; bed_number: string };
 
@@ -64,7 +64,7 @@ export default function AddContractPage() {
           .eq("status", "Pending")
           .order("created_at", { ascending: false }),
         supabase.from("contracts").select("id, admission_id, status, contract_status"),
-        supabase.from("contract_templates").select("id, title, content").eq("is_active", true).order("id", { ascending: false }),
+        supabase.from("contract_templates").select("id, title, content").eq("is_active", true).order("created_at", { ascending: false }),
         supabase.from("rooms").select("id, room_number"),
         supabase.from("beds").select("id, bed_number"),
       ]);
@@ -92,22 +92,25 @@ export default function AddContractPage() {
       );
       setRooms((roomResult.data ?? []) as Room[]);
       setBeds((bedResult.data ?? []) as Bed[]);
-      const activeTemplates = (templateResult.data ?? []) as ContractTemplate[];
+      const activeTemplates = (templateResult.data ?? []) as unknown as ContractTemplate[];
       if (templateResult.error) {
         setActiveTemplate(null);
         setTemplateMessage("The active contract template could not be verified. Please try again.");
-      } else if (activeTemplates.length === 1 && activeTemplates[0].content.trim()) {
-        setActiveTemplate(activeTemplates[0]);
-        setTemplateMessage("");
+      } else if (activeTemplates.length > 0) {
+        const standardChoice =
+          activeTemplates.find((t) => t.title?.toLowerCase().includes("standard")) ||
+          activeTemplates[0];
+
+        if (standardChoice && standardChoice.content?.trim()) {
+          setActiveTemplate(standardChoice);
+          setTemplateMessage("");
+        } else {
+          setActiveTemplate(null);
+          setTemplateMessage("The standard contract template has no terms configured. Please update the Standard Residency Contract from the Contracts page.");
+        }
       } else {
         setActiveTemplate(null);
-        setTemplateMessage(
-          activeTemplates.length === 0
-            ? "No active contract template is available. Please activate the standard contract template first."
-            : activeTemplates.length > 1
-              ? "Multiple active contract templates are available. Keep one standard template active or select the required template from Contracts."
-              : "The active contract template has no terms. Complete the standard template before preparing this contract.",
-        );
+        setTemplateMessage("No active contract template is available. Please set the Standard Residency Contract from the Contracts page.");
       }
       setLoading(false);
     }
@@ -265,7 +268,31 @@ export default function AddContractPage() {
 
           <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">End Date (optional)</span><input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} disabled={saving} className="w-full rounded-lg border px-3 py-2 text-slate-900 bg-white" /></label>
 
-          {activeTemplate && <section className="rounded-lg border border-gray-300 bg-gray-50 p-4"><h2 className="text-lg font-semibold text-gray-800">{activeTemplate.title}</h2><div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{activeTemplate.content}</div><p className="mt-4 text-xs text-gray-500">These terms are copied into an immutable contract snapshot for the resident to review and accept.</p></section>}
+          {activeTemplate && (
+            <section className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 pb-3">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
+                    Standard Residency Contract Format
+                  </span>
+                  <h2 className="mt-1 text-base font-bold text-gray-900">{activeTemplate.title}</h2>
+                </div>
+                <Link
+                  href="/contracts"
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                >
+                  Configure Standard Format →
+                </Link>
+              </div>
+              <div className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-gray-700 bg-white p-3.5 rounded-lg border border-slate-200">
+                {activeTemplate.content}
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
+                These terms are automatically applied to this contract. Residents will review and sign this agreement in the Resident Portal.
+              </p>
+            </section>
+          )}
 
           <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Special Clauses / Notes</span><textarea rows={4} value={notes} onChange={(event) => setNotes(event.target.value)} disabled={saving} className="w-full rounded-lg border px-3 py-2 text-slate-900 bg-white" /></label>
           <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Agreement PDF (optional)</span><input type="file" accept="application/pdf,.pdf" onChange={(event) => setAgreementFile(event.target.files?.[0] ?? null)} disabled={saving} className="w-full rounded-lg border p-2 text-slate-900 bg-white" /></label>
