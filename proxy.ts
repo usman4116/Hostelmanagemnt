@@ -15,6 +15,7 @@ const adminRoutes = [
   "/contracts",
   "/contract-template",
   "/billing",
+  "/meter-reading",
   "/payments",
   "/payment-verification",
   "/inspection",
@@ -42,6 +43,8 @@ const selfAuthenticatedApiPaths = new Set([
   // cookie-less POST with a 307 to /login, which surfaces as a 405.
   "/api/residents/create-login",
   "/api/residents/create-login/reset-password",
+  "/api/meter-reading",
+  "/api/meter-reading/config",
 ]);
 
 function isAdminRoute(pathname: string) {

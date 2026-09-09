@@ -84,7 +84,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen w-full">
       {!hasEmbeddedSidebar(pathname) && <Sidebar />}
       <div className="min-w-0 flex-1">
-        <header className="flex min-h-20 items-center justify-end border-b border-slate-200 bg-white px-4 py-3 sm:px-6 lg:px-8 dark:border-slate-700 dark:bg-slate-900">
+        <header className="flex min-h-20 items-center justify-end border-b border-slate-200 bg-white px-4 py-3 sm:px-6 lg:px-8">
           <ProfileDropdown />
         </header>
         {isAllowed ? children : <AccessDeniedView />}
