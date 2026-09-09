@@ -12,6 +12,10 @@ import {
   dueDateFromGeneration,
   isBillingMonth,
 } from "@/lib/billApproval";
+import {
+  getMeterReadingConfig,
+  isResidentElectricityEnabled,
+} from "@/lib/meterReading";
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest) {
     const residentIds = [...new Set(admissions.map((row) => text(row.resident_id)))];
     const admissionIds = admissions.map((row) => text(row.id));
 
-    const [residentsResult, contractsResult] = await Promise.all([
+    const [residentsResult, contractsResult, meterConfig, acReadingsResult] = await Promise.all([
       supabaseAdmin
         .from("residents")
         .select("id, full_name, status")
@@ -112,6 +116,11 @@ export async function POST(request: NextRequest) {
         .from("contracts")
         .select("id, admission_id, monthly_rent, status, contract_status")
         .in("admission_id", admissionIds),
+      getMeterReadingConfig(supabaseAdmin),
+      supabaseAdmin
+        .from("ac_bills")
+        .select("id, resident_id, admission_id, billing_month, total_amount, bill_id")
+        .like("billing_month", `${billingMonth}%`),
     ]);
 
     if (residentsResult.error || contractsResult.error) {
@@ -133,7 +142,7 @@ export async function POST(request: NextRequest) {
     const dueDate = dueDateFromGeneration(generatedAt);
     const timestamp = generatedAt.toISOString();
     const skipped: SkippedBill[] = [];
-    const rows: Record<string, unknown>[] = [];
+    const rows: (Record<string, unknown> & { _reading_id?: string | null })[] = [];
 
     admissions.forEach((admission, index) => {
       const admissionId = text(admission.id);
@@ -169,6 +178,24 @@ export async function POST(request: NextRequest) {
         return;
       }
 
+      const isElectricityEnabled = isResidentElectricityEnabled(meterConfig, residentId);
+      let meterCharge = 0;
+      let matchedReadingId: string | null = null;
+
+      if (isElectricityEnabled) {
+        const reading = (acReadingsResult.data ?? []).find(
+          (r) =>
+            (r.admission_id === admissionId || r.resident_id === residentId) &&
+            !r.bill_id
+        );
+        if (reading) {
+          meterCharge = amount(reading.total_amount);
+          matchedReadingId = reading.id;
+        }
+      }
+
+      const totalBillAmount = roundMoney(rent + meterCharge);
+
       rows.push({
         bill_number: billNumber(billingMonth, index),
         resident_id: residentId,
@@ -176,17 +203,18 @@ export async function POST(request: NextRequest) {
         billing_month: billingMonth,
         rent_amount: rent,
         electricity_amount: 0,
-        ac_amount: 0,
+        ac_amount: meterCharge,
         other_amount: 0,
         discount_amount: 0,
-        total_amount: rent,
+        total_amount: totalBillAmount,
         paid_amount: 0,
-        balance_amount: rent,
+        balance_amount: totalBillAmount,
         due_date: dueDate,
         bill_status: PENDING_APPROVAL,
-        notes: `Bulk generated on ${timestamp.slice(0, 10)} by ${staff.email}. Due ${BILL_APPROVAL_DUE_DAYS} days from generation.`,
+        notes: `Bulk generated on ${timestamp.slice(0, 10)} by ${staff.email}. Due ${BILL_APPROVAL_DUE_DAYS} days from generation.${meterCharge > 0 ? ` Includes electricity meter charges: Rs ${meterCharge.toLocaleString()}.` : ""}`,
         created_at: timestamp,
         updated_at: timestamp,
+        _reading_id: matchedReadingId,
       });
     });
 
@@ -201,21 +229,33 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const billInsertPayloads = rows.map(({ _reading_id, ...billData }) => billData);
     const { data: created, error: insertError } = await supabaseAdmin
       .from("bills")
-      .insert(rows)
+      .insert(billInsertPayloads)
       .select("id, bill_number, resident_id, admission_id, billing_month, total_amount, due_date, bill_status");
 
     if (insertError) {
       console.error("[billing] Bulk bill generation failed.", {
         billingMonth,
-        attempted: rows.length,
+        attempted: billInsertPayloads.length,
         message: insertError.message,
       });
       return apiError(
         "The bills could not be generated. No bills were created; please try again.",
         500,
       );
+    }
+
+    // Link created bills to their meter readings:
+    for (const createdBill of created ?? []) {
+      const originalRow = rows.find((r) => r.admission_id === createdBill.admission_id);
+      if (originalRow?._reading_id) {
+        await supabaseAdmin
+          .from("ac_bills")
+          .update({ bill_id: createdBill.id })
+          .eq("id", originalRow._reading_id);
+      }
     }
 
     console.info("[billing] Bulk bills generated.", {

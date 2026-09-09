@@ -16,6 +16,7 @@ const adminRoutes = [
   "/payments",
   "/payment-verification",
   "/billing",
+  "/meter-reading",
   "/contracts",
   "/contract-template",
   "/inspection",

@@ -14,6 +14,7 @@ const menuItems = [
   { name: "Beds", href: "/beds", permissionId: "beds" },
   { name: "Payments", href: "/payments", permissionId: "payments" },
   { name: "Rent Bills", href: "/billing?type=Rent", permissionId: "rent_bills" },
+  { name: "Meter Reading", href: "/meter-reading", permissionId: "meter_reading" },
   { name: "Security Deposits", href: "/billing?type=Security Deposit", permissionId: "security_deposits" },
   { name: "Contracts", href: "/contracts", permissionId: "contracts" },
   { name: "Inspections", href: "/inspection", permissionId: "inspections" },

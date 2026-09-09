@@ -35,6 +35,13 @@ import {
   type BulkGenerateResult,
 } from "@/lib/billingActions";
 import { usePermissions } from "@/lib/usePermissions";
+import Link from "next/link";
+import {
+  getMeterReadingConfig,
+  isResidentElectricityEnabled,
+  type MeterReadingConfig,
+  DEFAULT_UNIT_RATE,
+} from "@/lib/meterReading";
 
 type GenericRow = Record<string, unknown>;
 
@@ -248,6 +255,7 @@ function BillingContent() {
   const [rooms, setRooms] = useState<GenericRow[]>([]);
   const [beds, setBeds] = useState<GenericRow[]>([]);
   const [acBills, setAcBills] = useState<AcBill[]>([]);
+  const [meterConfig, setMeterConfig] = useState<MeterReadingConfig | null>(null);
   const [payments, setPayments] = useState<GenericRow[]>([]);
   const [receipts, setReceipts] = useState<GenericRow[]>([]);
   const [form, setForm] = useState<BillForm>(emptyForm);
@@ -303,7 +311,7 @@ function BillingContent() {
     setLoading(true);
     setError("");
 
-    const [billsResult, residentsResult, admissionsResult, roomsResult, acBillsResult, paymentsResult, receiptsResult] =
+    const [billsResult, residentsResult, admissionsResult, roomsResult, acBillsResult, paymentsResult, receiptsResult, loadedMeterConfig] =
       await Promise.all([
         supabase
           .from("bills")
@@ -318,7 +326,10 @@ function BillingContent() {
           .select("*")
           .order("created_at", { ascending: false }),
         supabase.from("rooms").select("id, room_number, status"),
-        Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("ac_bills")
+          .select(acBillColumns)
+          .order("billing_month", { ascending: false }),
         supabase
           .from("payments")
           .select("id, bill_id, resident_id, payment_number, payment_date, amount, payment_status, reference_number")
@@ -326,6 +337,7 @@ function BillingContent() {
         supabase
           .from("payment_receipts")
           .select("id, bill_id, resident_id, status, receipt_url, amount, created_at"),
+        getMeterReadingConfig(supabase),
       ]);
 
     const firstError =
@@ -374,6 +386,7 @@ function BillingContent() {
       setAdmissions((admissionsResult.data ?? []) as GenericRow[]);
       setRooms((roomsResult.data ?? []) as GenericRow[]);
       setAcBills((acBillsResult.data ?? []) as AcBill[]);
+      setMeterConfig(loadedMeterConfig);
       setPayments((paymentsResult.data ?? []) as GenericRow[]);
       setReceipts((receiptsResult.data ?? []) as GenericRow[]);
     }
@@ -390,18 +403,27 @@ function BillingContent() {
     return () => window.clearTimeout(timeoutId);
   }, [refresh]);
 
+  const isElectricityEnabled = Boolean(
+    form.resident_id && isResidentElectricityEnabled(meterConfig, form.resident_id)
+  );
+
   const computed = useMemo(() => {
     const units = Math.max(
       roundMoney(numberValue(form.current_reading) - numberValue(form.previous_reading)),
       0,
     );
     const meterAmount = roundMoney(units * numberValue(form.rate_per_unit));
-    const acAmount = form.current_reading || form.previous_reading || form.rate_per_unit
+    const acAmount = !isElectricityEnabled && form.resident_id
+      ? 0
+      : form.current_reading || form.previous_reading || form.rate_per_unit
       ? meterAmount
       : numberValue(form.ac_amount);
+    const electricityAmount = !isElectricityEnabled && form.resident_id
+      ? 0
+      : numberValue(form.electricity_amount);
     const subtotal =
       numberValue(form.rent_amount) +
-      numberValue(form.electricity_amount) +
+      electricityAmount +
       acAmount +
       numberValue(form.other_amount);
 
@@ -413,8 +435,8 @@ function BillingContent() {
     const paid = Math.min(numberValue(form.paid_amount), total);
     const balance = Math.max(total - paid, 0);
 
-    return { subtotal, total, paid, balance, units, acAmount };
-  }, [form]);
+    return { subtotal, total, paid, balance, units, acAmount, electricityAmount };
+  }, [form, isElectricityEnabled]);
 
   const filteredBills = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -675,14 +697,23 @@ function BillingContent() {
     }));
   }
 
-  function latestPreviousReading(admissionId: string, billingMonth: string) {
+  function latestPreviousReading(admissionId: string, billingMonth: string, residentId?: string) {
     const selectedMonthStart = monthStartDate(billingMonth);
     const previousMeterBill = acBills.find(
       (item) =>
-        item.admission_id === admissionId &&
-        item.billing_month < selectedMonthStart,
+        ((admissionId && item.admission_id === admissionId) || (residentId && item.resident_id === residentId)) &&
+        monthStartDate(item.billing_month) < selectedMonthStart,
     );
-    return previousMeterBill ? String(previousMeterBill.current_reading) : "";
+    return previousMeterBill ? String(previousMeterBill.current_reading) : "0";
+  }
+
+  function findRecordedMeterReading(admissionId: string, residentId: string, billingMonth: string) {
+    const selectedMonthStart = monthStartDate(billingMonth);
+    return acBills.find(
+      (item) =>
+        ((admissionId && item.admission_id === admissionId) || (residentId && item.resident_id === residentId)) &&
+        monthStartDate(item.billing_month) === selectedMonthStart,
+    );
   }
 
   const [verifyingReceipt, setVerifyingReceipt] = useState<GenericRow | null>(null);
@@ -1027,19 +1058,42 @@ function BillingContent() {
     }
 
     setPreviousReadingEdited(false);
+    const residentId = firstText(admission, ["resident_id"]);
+    const isElectricityEnabled = isResidentElectricityEnabled(meterConfig, residentId);
+    const currentMonth = form.billing_month || billingMonthOf();
+    const recordedMeter = isElectricityEnabled
+      ? findRecordedMeterReading(admissionId, residentId, currentMonth)
+      : null;
 
     setForm((current) => ({
       ...current,
       admission_id: admissionId,
-      resident_id: firstText(admission, ["resident_id"]),
+      resident_id: residentId,
       room_id: firstText(admission, ["room_id"]),
       rent_amount: firstText(admission, [
         "monthly_rent",
         "rent_amount",
       ]),
-      previous_reading: latestPreviousReading(admissionId, current.billing_month),
+      previous_reading: recordedMeter
+        ? String(recordedMeter.previous_reading)
+        : isElectricityEnabled
+        ? latestPreviousReading(admissionId, current.billing_month, residentId)
+        : "",
+      current_reading: recordedMeter
+        ? String(recordedMeter.current_reading)
+        : "",
+      rate_per_unit: recordedMeter
+        ? String(recordedMeter.rate_per_unit)
+        : isElectricityEnabled
+        ? String(meterConfig?.default_unit_rate || DEFAULT_UNIT_RATE)
+        : "",
+      ac_amount: recordedMeter
+        ? String(recordedMeter.total_amount)
+        : isElectricityEnabled
+        ? ""
+        : "0",
+      electricity_amount: isElectricityEnabled ? current.electricity_amount : "0",
     }));
-
   }
 
   async function saveBill(event: FormEvent<HTMLFormElement>) {
@@ -1066,9 +1120,15 @@ function BillingContent() {
       form.previous_reading || form.current_reading || form.rate_per_unit,
     );
     const acBillingMonth = monthStartDate(form.billing_month);
+    const preExistingReading = acBills.find(
+      (item) =>
+        ((form.admission_id && item.admission_id === form.admission_id) ||
+          (form.resident_id && item.resident_id === form.resident_id)) &&
+        monthStartDate(item.billing_month) === acBillingMonth,
+    );
     const currentMeterBillId = editingId
       ? editingAcBillId ?? acBills.find((item) => item.bill_id === editingId)?.id
-      : undefined;
+      : preExistingReading?.id;
     if (
       meterSupplied &&
       (numberValue(form.previous_reading) < 0 ||
@@ -1116,7 +1176,7 @@ function BillingContent() {
       if (meterSupplied) {
         let duplicateMeterQuery = supabase
           .from("ac_bills")
-          .select("id")
+          .select("id, bill_id")
           .eq("admission_id", form.admission_id)
           .eq("billing_month", acBillingMonth)
           .limit(1);
@@ -1130,7 +1190,7 @@ function BillingContent() {
           setSaving(false);
           return;
         }
-        if ((duplicateMeter ?? []).length > 0) {
+        if ((duplicateMeter ?? []).some((row) => row.bill_id && row.bill_id !== editingId)) {
           setError("An AC bill already exists for this admission and billing month.");
           setSaving(false);
           return;
@@ -1205,6 +1265,7 @@ function BillingContent() {
       const savedBillId = text(result.data?.id);
       const existingMeterBillId =
         currentMeterBillId ??
+        preExistingReading?.id ??
         acBills.find((item) => item.bill_id === savedBillId)?.id;
       if (meterSupplied) {
         const meterPayload = {
@@ -1218,7 +1279,6 @@ function BillingContent() {
           rate_per_unit: numberValue(form.rate_per_unit),
           total_amount: computed.acAmount,
           remarks: form.notes.trim() || null,
-          updated_at: new Date().toISOString(),
         };
         const meterOperation = existingMeterBillId ? "update" : "insert";
 
@@ -1873,19 +1933,46 @@ function BillingContent() {
                     <input
                       required
                       value={form.billing_month}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const newMonth = event.target.value;
+                        const residentId = form.resident_id;
+                        const admissionId = form.admission_id;
+                        const isElecEnabled = Boolean(
+                          residentId && isResidentElectricityEnabled(meterConfig, residentId)
+                        );
+                        const recordedMeter = isElecEnabled
+                          ? findRecordedMeterReading(admissionId, residentId, newMonth)
+                          : null;
+
                         setForm((current) => ({
                           ...current,
-                          billing_month: event.target.value,
-                          due_date: monthEndDate(event.target.value),
-                          previous_reading: previousReadingEdited
+                          billing_month: newMonth,
+                          due_date: monthEndDate(newMonth),
+                          previous_reading: recordedMeter
+                            ? String(recordedMeter.previous_reading)
+                            : previousReadingEdited
                             ? current.previous_reading
-                            : latestPreviousReading(
-                                current.admission_id,
-                                event.target.value,
-                              ),
-                        }))
-                      }
+                            : isElecEnabled
+                            ? latestPreviousReading(current.admission_id, newMonth, residentId)
+                            : "",
+                          current_reading: recordedMeter
+                            ? String(recordedMeter.current_reading)
+                            : isElecEnabled
+                            ? current.current_reading
+                            : "",
+                          rate_per_unit: recordedMeter
+                            ? String(recordedMeter.rate_per_unit)
+                            : isElecEnabled
+                            ? current.rate_per_unit || String(meterConfig?.default_unit_rate || DEFAULT_UNIT_RATE)
+                            : "",
+                          ac_amount: recordedMeter
+                            ? String(recordedMeter.total_amount)
+                            : isElecEnabled
+                            ? current.ac_amount
+                            : "0",
+                          electricity_amount: isElecEnabled ? current.electricity_amount : "0",
+                        }));
+                      }}
                       className={inputClass}
                     />
                   </Field>
@@ -1914,6 +2001,7 @@ function BillingContent() {
                         type="number"
                         min="0"
                         value={form.electricity_amount}
+                        disabled={!isElectricityEnabled && Boolean(form.resident_id)}
                         onChange={(event) =>
                           updateField(
                             "electricity_amount",
@@ -1921,7 +2009,7 @@ function BillingContent() {
                           )
                         }
                         className={inputClass}
-                        placeholder="1200"
+                        placeholder={!isElectricityEnabled && Boolean(form.resident_id) ? "Not enabled (0)" : "1200"}
                       />
                     </Field>
 
@@ -1929,13 +2017,14 @@ function BillingContent() {
                       label={
                         editingId && editingWithoutMeterRecord
                           ? "Manual AC Charge"
-                          : "AC Charges (Meter Based)"
+                          : "AC / Electricity Charges (Meter Based)"
                       }
                     >
                       <input
                         type="number"
                         min="0"
                         value={form.ac_amount}
+                        disabled={!isElectricityEnabled && Boolean(form.resident_id)}
                         onChange={(event) =>
                           updateField(
                             "ac_amount",
@@ -1943,9 +2032,37 @@ function BillingContent() {
                           )
                         }
                         className={inputClass}
-                        placeholder="800"
+                        placeholder={!isElectricityEnabled && Boolean(form.resident_id) ? "Not enabled (0)" : "800"}
                       />
                     </Field>
+
+                    {form.resident_id && !isElectricityEnabled && (
+                      <Field label="Electricity Status" wide>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                          ⚡ <strong>Electricity billing is not enabled</strong> for this student. Only selected students are charged electricity bills. (To enable this student, visit the{" "}
+                          <Link href="/meter-reading" className="font-bold underline text-blue-600 dark:text-blue-400">
+                            Meter Reading Module
+                          </Link>).
+                        </div>
+                      </Field>
+                    )}
+
+                    {form.resident_id && isElectricityEnabled && (
+                      <Field label="Electricity Meter Status" wide>
+                        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+                          <span>
+                            {findRecordedMeterReading(form.admission_id, form.resident_id, form.billing_month) ? (
+                              <>✓ <strong>Meter reading auto-loaded</strong> from Meter Reading module for {form.billing_month} ({computed.units.toFixed(2)} units = {money(computed.acAmount)}).</>
+                            ) : (
+                              <>⚡ Electricity billing enabled for this student. Any reading entered below will be recorded.</>
+                            )}
+                          </span>
+                          <Link href="/meter-reading" className="ml-2 font-bold underline text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                            Meter Module →
+                          </Link>
+                        </div>
+                      </Field>
+                    )}
 
                     {editingId && editingWithoutMeterRecord && (
                       <Field label="AC Meter Details" wide>
@@ -1961,12 +2078,13 @@ function BillingContent() {
                         min="0"
                         step="0.01"
                         value={form.previous_reading}
+                        disabled={!isElectricityEnabled && Boolean(form.resident_id)}
                         onChange={(event) => {
                           setPreviousReadingEdited(true);
                           updateField("previous_reading", event.target.value);
                         }}
                         className={inputClass}
-                        placeholder="Previous reading"
+                        placeholder={!isElectricityEnabled && Boolean(form.resident_id) ? "Disabled" : "Previous reading"}
                       />
                     </Field>
 
@@ -1976,9 +2094,10 @@ function BillingContent() {
                         min="0"
                         step="0.01"
                         value={form.current_reading}
+                        disabled={!isElectricityEnabled && Boolean(form.resident_id)}
                         onChange={(event) => updateField("current_reading", event.target.value)}
                         className={inputClass}
-                        placeholder="Current reading"
+                        placeholder={!isElectricityEnabled && Boolean(form.resident_id) ? "Disabled" : "Current reading"}
                       />
                     </Field>
 
@@ -1988,16 +2107,21 @@ function BillingContent() {
                         min="0"
                         step="0.01"
                         value={form.rate_per_unit}
+                        disabled={!isElectricityEnabled && Boolean(form.resident_id)}
                         onChange={(event) => updateField("rate_per_unit", event.target.value)}
                         className={inputClass}
-                        placeholder="Rate per unit"
+                        placeholder={!isElectricityEnabled && Boolean(form.resident_id) ? "Disabled" : "Rate per unit"}
                       />
                     </Field>
 
-                    <Field label="Units / Calculated AC Amount">
+                    <Field label="Units / Calculated Meter Charge">
                       <input
                         readOnly
-                        value={`${computed.units.toFixed(2)} units — ${money(computed.acAmount)}`}
+                        value={
+                          !isElectricityEnabled && Boolean(form.resident_id)
+                            ? "0.00 units — Rs 0 (Not Enabled)"
+                            : `${computed.units.toFixed(2)} units — ${money(computed.acAmount)}`
+                        }
                         className={inputClass}
                       />
                     </Field>

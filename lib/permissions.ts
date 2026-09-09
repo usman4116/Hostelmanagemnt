@@ -59,6 +59,13 @@ export const AVAILABLE_PERMISSIONS: PermissionDefinition[] = [
     category: "Finance",
   },
   {
+    id: "meter_reading",
+    name: "Meter Reading",
+    description: "Electricity meter reading entry, unit price setting, and resident meter management",
+    href: "/meter-reading",
+    category: "Finance",
+  },
+  {
     id: "security_deposits",
     name: "Security Deposits",
     description: "Security deposit records, status tracking, and refunds",
@@ -151,6 +158,8 @@ export function matchPathToPermission(
     }
     return "rent_bills";
   }
+
+  if (pathname === "/meter-reading" || pathname.startsWith("/meter-reading/")) return "meter_reading";
 
   if (pathname === "/dashboard") return "dashboard";
   if (pathname === "/admissions" || pathname.startsWith("/admissions/")) return "admissions";
