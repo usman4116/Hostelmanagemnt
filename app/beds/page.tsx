@@ -667,37 +667,6 @@ export default function RoomsPage() {
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
-              Hostel Management System
-            </p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">
-              Rooms & Beds
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Manage rooms, beds, capacity, rent and occupancy status.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={openAddRoom}
-              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
-            >
-              + Add Room
-            </button>
-            <button
-              type="button"
-              onClick={() => openAddBed()}
-              disabled={roomsWithBedCapacity.length === 0}
-              className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              + Add Bed
-            </button>
-          </div>
-        </section>
 
         {(message || error) && (
           <section
